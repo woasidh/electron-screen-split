@@ -30,8 +30,6 @@ function registerMockIpc() {
     shortcut: "CommandOrControl+Shift+M",
   }));
   ipcMain.handle("config:save", (_event, config) => config);
-  ipcMain.handle("preview:refresh", () => Array.from({ length: 4 }, () => null));
-  ipcMain.handle("slot:reload", () => true);
   ipcMain.handle("wall:run", () => {
     runCount += 1;
     return true;
@@ -71,8 +69,8 @@ app.whenReady().then(async () => {
       runLabel: document.querySelector('#run-wall')?.textContent.trim(),
       viewport: { width: window.innerWidth, height: window.innerHeight },
       runBounds: document.querySelector('#run-wall')?.getBoundingClientRect().toJSON(),
-      refreshBounds: document.querySelector('#refresh-preview')?.getBoundingClientRect().toJSON(),
-      reloadBounds: document.querySelector('#reload-selected')?.getBoundingClientRect().toJSON()
+      autoRefreshLabel: document.querySelector('#preview-state')?.textContent,
+      hasManualRefreshButtons: document.body.innerText.includes('새로고침') || document.body.innerText.includes('미리보기 갱신')
     })`);
 
     assert.equal(initial.tileCount, 4);
@@ -80,10 +78,10 @@ app.whenReady().then(async () => {
     assert.equal(initial.hasPositionButtons, false);
     assert.equal(initial.outputResolution, "3840 × 2160");
     assert.equal(initial.runLabel, "RUN");
+    assert.equal(initial.autoRefreshLabel, "5초 자동 갱신");
+    assert.equal(initial.hasManualRefreshButtons, false);
     assert.ok(initial.runBounds.right <= initial.viewport.width);
     assert.ok(initial.runBounds.bottom <= initial.viewport.height);
-    assert.ok(initial.refreshBounds.right <= initial.viewport.width);
-    assert.ok(initial.refreshBounds.bottom <= initial.viewport.height);
 
     const dragResult = await window.webContents.executeJavaScript(`(() => {
       const tiles = document.querySelectorAll('.screen-tile');

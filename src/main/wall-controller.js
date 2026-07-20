@@ -8,6 +8,7 @@ const { calculateOutputZoom, calculateQuadrants, getOutputInfo } = require("./la
 const MANAGER_SHORTCUT_KEY = "m";
 const OVERLAY_HIDE_DELAY = 3000;
 const OVERLAY_PANELS = ["hint"];
+const PREVIEW_REFRESH_INTERVAL = 5000;
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -28,6 +29,8 @@ class WallController {
     this.statuses = Array.from({ length: 4 }, () => ({ state: "idle" }));
     this.previews = Array.from({ length: 4 }, () => null);
     this.captureTimers = new Map();
+    this.previewRefreshTimer = null;
+    this.previewRefreshInFlight = false;
     this.overlayHideTimer = null;
     this.overlayHoverPanels = new Set();
     this.overlayControlsVisible = false;
@@ -400,6 +403,7 @@ class WallController {
       }),
     );
 
+    this.startPreviewAutoRefresh();
     return normalized;
   }
 
@@ -426,11 +430,6 @@ class WallController {
     if (failure) this.setStatus(index, "error", failure.reason.message);
   }
 
-  async reloadSlot(index) {
-    if (!Number.isInteger(index) || index < 0 || index >= this.views.length) return;
-    await this.loadSlot(index);
-  }
-
   scheduleCapture(index) {
     clearTimeout(this.captureTimers.get(index));
     const timer = setTimeout(() => {
@@ -445,7 +444,9 @@ class WallController {
   async captureSlot(index) {
     const slot = this.config?.slots[index];
     const previewWindow = this.previewWindows[index];
-    if (!slot?.enabled || !previewWindow || previewWindow.isDestroyed()) return null;
+    if (this.running || !slot?.enabled || !previewWindow || previewWindow.isDestroyed()) {
+      return null;
+    }
 
     let image = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -458,6 +459,7 @@ class WallController {
         if (attempt === 2) throw error;
       }
     }
+    if (this.running) return null;
     if (!image || image.isEmpty()) throw new Error("캡처 이미지가 비어 있음");
 
     const thumbnail = image.resize({ width: 640, quality: "good" });
@@ -485,9 +487,34 @@ class WallController {
     return this.getPreviews();
   }
 
+  startPreviewAutoRefresh() {
+    if (this.running || this.destroying || this.previewRefreshTimer) return;
+    this.previewRefreshTimer = setInterval(() => {
+      this.refreshPreviewsInBackground();
+    }, PREVIEW_REFRESH_INTERVAL);
+  }
+
+  stopPreviewAutoRefresh() {
+    clearInterval(this.previewRefreshTimer);
+    this.previewRefreshTimer = null;
+  }
+
+  async refreshPreviewsInBackground() {
+    if (this.running || this.destroying || this.previewRefreshInFlight) return;
+    this.previewRefreshInFlight = true;
+    try {
+      await this.captureAll();
+    } catch (error) {
+      console.error("자동 미리보기 갱신 실패", error);
+    } finally {
+      this.previewRefreshInFlight = false;
+    }
+  }
+
   run() {
     this.ensureWindow();
     this.running = true;
+    this.stopPreviewAutoRefresh();
     this.captureTimers.forEach((timer) => clearTimeout(timer));
     this.captureTimers.clear();
     const display = screen.getPrimaryDisplay();
@@ -523,12 +550,14 @@ class WallController {
       if (!window.webContents.isPainting()) window.webContents.startPainting();
       if (this.config?.slots[index]?.enabled) this.scheduleCapture(index);
     });
+    this.startPreviewAutoRefresh();
   }
 
   destroy() {
     this.destroying = true;
     clearInterval(this.wallModeGuardTimer);
     this.wallModeGuardTimer = null;
+    this.stopPreviewAutoRefresh();
     clearTimeout(this.overlayHideTimer);
     this.overlayHideTimer = null;
     this.cursorStyleGeneration += 1;
@@ -667,4 +696,4 @@ class WallController {
   }
 }
 
-module.exports = { WallController };
+module.exports = { PREVIEW_REFRESH_INTERVAL, WallController };

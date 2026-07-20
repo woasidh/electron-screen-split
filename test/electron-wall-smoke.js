@@ -3,7 +3,11 @@ const http = require("node:http");
 
 const { app } = require("electron");
 
-const { WallController } = require("../src/main/wall-controller");
+const { PREVIEW_REFRESH_INTERVAL, WallController } = require("../src/main/wall-controller");
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function createServer() {
   const server = http.createServer((request, response) => {
@@ -46,8 +50,19 @@ app.whenReady().then(async () => {
     await controller.applyConfig(config, { forceReload: true });
     await controller.overlayReady;
     const previews = await controller.captureAll();
+    let automaticRefreshes = 0;
+    const captureAll = controller.captureAll.bind(controller);
+    controller.captureAll = async () => {
+      automaticRefreshes += 1;
+      return controller.getPreviews();
+    };
+    await wait(PREVIEW_REFRESH_INTERVAL + 200);
+    assert.equal(automaticRefreshes >= 1, true);
+    controller.captureAll = captureAll;
 
     assert.equal(controller.views.length, 4);
+    assert.equal(PREVIEW_REFRESH_INTERVAL, 5000);
+    assert.notEqual(controller.previewRefreshTimer, null);
     assert.equal(controller.overlayViews.size, 1);
     assert.equal(statuses.filter((status) => status.state === "ready").length >= 4, true);
     assert.equal(
@@ -157,6 +172,7 @@ app.whenReady().then(async () => {
         layoutCoversWindow: true,
         escapeReturnsToManager: true,
         outputMatchesPreviewViewport: true,
+        autoPreviewRefresh: true,
         output: controller.getOutputInfo(),
       }),
     );

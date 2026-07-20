@@ -101,17 +101,6 @@ function registerIpcHandlers() {
     return saved;
   });
 
-  ipcMain.handle("preview:refresh", async (event) => {
-    assertManagerSender(event);
-    return wallController.captureAll();
-  });
-
-  ipcMain.handle("slot:reload", async (event, index) => {
-    assertManagerSender(event);
-    await wallController.reloadSlot(Number(index));
-    return true;
-  });
-
   ipcMain.handle("wall:run", (event) => {
     assertManagerSender(event);
     const issues = getConfigIssues(configStore.get());

@@ -15,8 +15,6 @@ const elements = {
   outputWarning: document.querySelector("#output-warning"),
   previewState: document.querySelector("#preview-state"),
   previewUpdated: document.querySelector("#preview-updated"),
-  refreshPreview: document.querySelector("#refresh-preview"),
-  reloadSelected: document.querySelector("#reload-selected"),
   resolutionDialog: document.querySelector("#resolution-dialog"),
   resolutionDialogMessage: document.querySelector("#resolution-dialog-message"),
   runWall: document.querySelector("#run-wall"),
@@ -51,6 +49,15 @@ let saveQueue = Promise.resolve();
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function formatRefreshTime(timestamp) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp || Date.now()));
 }
 
 function isSafeUrl(value) {
@@ -310,36 +317,6 @@ elements.slotEnabled.addEventListener("change", () => {
   markChanged(0);
 });
 
-elements.reloadSelected.addEventListener("click", async () => {
-  elements.reloadSelected.disabled = true;
-  try {
-    await flushSave();
-    await api.reloadSlot(selectedIndex);
-  } catch (error) {
-    showToast(error.message, true);
-  } finally {
-    elements.reloadSelected.disabled = false;
-  }
-});
-
-elements.refreshPreview.addEventListener("click", async () => {
-  elements.refreshPreview.disabled = true;
-  elements.previewState.textContent = "갱신 중…";
-  try {
-    await flushSave();
-    const updated = await api.refreshPreview();
-    previews = updated;
-    elements.previewState.textContent = "최신 상태";
-    elements.previewUpdated.textContent = "방금 갱신됨";
-    renderGrid();
-  } catch (error) {
-    elements.previewState.textContent = "갱신 실패";
-    showToast(error.message, true);
-  } finally {
-    elements.refreshPreview.disabled = false;
-  }
-});
-
 elements.runWall.addEventListener("click", async () => {
   const issueIndex = getFirstConfigIssue();
   if (issueIndex >= 0) {
@@ -373,8 +350,8 @@ api.onStatusChanged((status) => {
 
 api.onPreviewUpdated((preview) => {
   previews[preview.index] = preview;
-  elements.previewState.textContent = "최신 상태";
-  elements.previewUpdated.textContent = "방금 갱신됨";
+  elements.previewState.textContent = "5초 자동 갱신";
+  elements.previewUpdated.textContent = `${formatRefreshTime(preview.capturedAt)} 자동 갱신됨`;
   if (config) renderGrid();
 });
 
@@ -396,7 +373,7 @@ async function initialize() {
     previews = initial.previews;
     statuses = initial.statuses;
     elements.shortcutHint.textContent = `실행 중 ${initial.shortcut}로 관리 화면 복귀`;
-    elements.previewState.textContent = "준비 중";
+    elements.previewState.textContent = "5초 자동 갱신";
     elements.saveState.textContent = "모든 변경사항 저장됨";
     renderAll();
   } catch (error) {
