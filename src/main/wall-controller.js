@@ -5,7 +5,6 @@ const { BrowserWindow, WebContentsView, screen } = require("electron");
 const { isSafeRemoteUrl, normalizeConfig } = require("./config-store");
 const { calculateOutputZoom, calculateQuadrants, getOutputInfo } = require("./layout");
 
-const MANAGER_SHORTCUT_KEY = "m";
 const OVERLAY_HIDE_DELAY = 3000;
 const OVERLAY_PANELS = ["hint"];
 const PREVIEW_REFRESH_INTERVAL = 5000;
@@ -239,9 +238,7 @@ class WallController {
     if (type !== "keydown" && type !== "rawkeydown") return;
 
     const key = String(input.key || "").toLowerCase();
-    const isManagerShortcut =
-      key === MANAGER_SHORTCUT_KEY && input.shift && (input.control || input.meta);
-    if (key !== "escape" && !isManagerShortcut) return;
+    if (key !== "escape") return;
 
     event.preventDefault();
     this.onManagerShortcut();

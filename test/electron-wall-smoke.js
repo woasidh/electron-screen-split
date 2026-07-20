@@ -157,6 +157,18 @@ app.whenReady().then(async () => {
     assert.equal(prevented, true);
     assert.equal(managerRequests, 2);
 
+    prevented = false;
+    controller.handleShortcutInput(
+      {
+        preventDefault: () => {
+          prevented = true;
+        },
+      },
+      { type: "keyDown", key: "m", shift: true, control: true },
+    );
+    assert.equal(prevented, false);
+    assert.equal(managerRequests, 2);
+
     controller.window.emit("leave-full-screen");
     assert.equal(managerRequests, 3);
     controller.checkWallModeState(false);

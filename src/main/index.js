@@ -13,7 +13,6 @@ const {
 const { ConfigStore, getConfigIssues } = require("./config-store");
 const { WallController } = require("./wall-controller");
 
-const MANAGER_SHORTCUT = "CommandOrControl+Shift+M";
 const WALL_ESCAPE_SHORTCUT = "Esc";
 
 let managerWindow = null;
@@ -90,7 +89,7 @@ function registerIpcHandlers() {
       output: wallController.getOutputInfo(),
       previews: wallController.getPreviews(),
       statuses: wallController.getStatuses(),
-      shortcut: MANAGER_SHORTCUT,
+      shortcut: "ESC",
     };
   });
 
@@ -144,11 +143,6 @@ async function startApplication() {
       console.error("초기 화면 로딩 실패", error);
     });
   });
-
-  const shortcutRegistered = globalShortcut.register(MANAGER_SHORTCUT, showManager);
-  if (!shortcutRegistered) {
-    console.warn(`${MANAGER_SHORTCUT} 단축키 등록에 실패했습니다.`);
-  }
 
   screen.on("display-metrics-changed", () => {
     wallController.layoutViews();

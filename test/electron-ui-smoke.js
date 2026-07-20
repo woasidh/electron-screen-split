@@ -27,7 +27,7 @@ function registerMockIpc() {
       state: "ready",
       message: "",
     })),
-    shortcut: "CommandOrControl+Shift+M",
+    shortcut: "ESC",
   }));
   ipcMain.handle("config:save", (_event, config) => config);
   ipcMain.handle("wall:run", () => {
@@ -66,6 +66,7 @@ app.whenReady().then(async () => {
       hasDragGuide: document.querySelector('.drag-guide')?.textContent.includes('끌어 놓으면'),
       hasPositionButtons: document.body.innerText.includes('위치 교환'),
       outputResolution: document.querySelector('#output-resolution')?.textContent,
+      shortcutHint: document.querySelector('#shortcut-hint')?.textContent.trim(),
       runLabel: document.querySelector('#run-wall')?.textContent.trim(),
       viewport: { width: window.innerWidth, height: window.innerHeight },
       runBounds: document.querySelector('#run-wall')?.getBoundingClientRect().toJSON(),
@@ -78,6 +79,7 @@ app.whenReady().then(async () => {
     assert.equal(initial.hasDragGuide, true);
     assert.equal(initial.hasPositionButtons, false);
     assert.equal(initial.outputResolution, "3840 × 2160");
+    assert.equal(initial.shortcutHint, "실행 중 ESC로 관리 화면 복귀");
     assert.equal(initial.runLabel, "RUN");
     assert.equal(initial.autoRefreshLabel, "5초 자동 갱신");
     assert.equal(initial.hasManualRefreshButtons, false);
