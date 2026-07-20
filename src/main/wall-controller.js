@@ -38,7 +38,7 @@ class WallController {
     this.cursorShouldBeHidden = false;
     this.cursorStyleGeneration = 0;
     this.cursorCssKeys = Array.from({ length: 4 }, () => null);
-    this.kioskGuardTimer = null;
+    this.wallModeGuardTimer = null;
     this.running = false;
     this.destroying = false;
   }
@@ -249,15 +249,34 @@ class WallController {
     if (this.running) this.onManagerShortcut();
   }
 
-  checkKioskState(isKiosk = null) {
+  checkWallModeState(isActive = null) {
     if (!this.running || !this.window || this.window.isDestroyed()) return;
-    const currentlyKiosk = typeof isKiosk === "boolean" ? isKiosk : this.window.isKiosk();
-    if (!currentlyKiosk) this.onManagerShortcut();
+    const currentlyActive =
+      typeof isActive === "boolean"
+        ? isActive
+        : process.platform !== "darwin" || this.window.isSimpleFullScreen();
+    if (!currentlyActive) this.onManagerShortcut();
   }
 
-  startKioskGuard() {
-    clearInterval(this.kioskGuardTimer);
-    this.kioskGuardTimer = setInterval(() => this.checkKioskState(), 100);
+  startWallModeGuard() {
+    clearInterval(this.wallModeGuardTimer);
+    if (process.platform !== "darwin") return;
+    this.wallModeGuardTimer = setInterval(() => this.checkWallModeState(), 100);
+  }
+
+  enterWallMode() {
+    if (process.platform === "darwin") {
+      this.window.setSimpleFullScreen(true);
+    }
+    this.window.setAlwaysOnTop(true, "screen-saver");
+  }
+
+  leaveWallMode() {
+    if (process.platform === "darwin" && this.window.isSimpleFullScreen()) {
+      this.window.setSimpleFullScreen(false);
+    }
+    if (this.window.isFullScreen()) this.window.setFullScreen(false);
+    this.window.setAlwaysOnTop(false);
   }
 
   ensurePreviewWindows() {
@@ -480,24 +499,24 @@ class WallController {
     this.window.setBounds(display.bounds);
     this.layoutViews();
     this.window.show();
-    this.window.setKiosk(true);
+    this.enterWallMode();
     this.window.focus();
-    this.startKioskGuard();
+    this.startWallModeGuard();
     this.showOverlay();
   }
 
   stop() {
     if (!this.window || this.window.isDestroyed()) return;
     this.running = false;
-    clearInterval(this.kioskGuardTimer);
-    this.kioskGuardTimer = null;
+    clearInterval(this.wallModeGuardTimer);
+    this.wallModeGuardTimer = null;
     clearTimeout(this.overlayHideTimer);
     this.overlayHideTimer = null;
     this.overlayHoverPanels.clear();
     this.overlayControlsVisible = false;
     OVERLAY_PANELS.forEach((panel) => this.setOverlayPanelVisible(panel, false));
     this.setCursorHidden(false);
-    this.window.setKiosk(false);
+    this.leaveWallMode();
     this.window.hide();
     this.previewWindows.forEach((window, index) => {
       if (window.isDestroyed()) return;
@@ -508,8 +527,8 @@ class WallController {
 
   destroy() {
     this.destroying = true;
-    clearInterval(this.kioskGuardTimer);
-    this.kioskGuardTimer = null;
+    clearInterval(this.wallModeGuardTimer);
+    this.wallModeGuardTimer = null;
     clearTimeout(this.overlayHideTimer);
     this.overlayHideTimer = null;
     this.cursorStyleGeneration += 1;

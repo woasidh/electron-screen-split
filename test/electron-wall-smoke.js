@@ -144,7 +144,7 @@ app.whenReady().then(async () => {
 
     controller.window.emit("leave-full-screen");
     assert.equal(managerRequests, 3);
-    controller.checkKioskState(false);
+    controller.checkWallModeState(false);
     assert.equal(managerRequests, 4);
     controller.running = false;
 

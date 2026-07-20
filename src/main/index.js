@@ -41,7 +41,7 @@ function registerWallEscapeShortcut() {
   globalShortcut.unregister(WALL_ESCAPE_SHORTCUT);
   const registered = globalShortcut.register(WALL_ESCAPE_SHORTCUT, showManager);
   if (!registered) {
-    console.warn(`${WALL_ESCAPE_SHORTCUT} 단축키 등록에 실패해 키오스크 상태 감시를 사용합니다.`);
+    console.warn(`${WALL_ESCAPE_SHORTCUT} 단축키 등록에 실패해 전체화면 상태 감시를 사용합니다.`);
   }
 }
 
