@@ -575,11 +575,6 @@ h2 {
   gap: 10px;
 }
 
-.save-state {
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .toast {
   position: fixed;
   right: 24px;

@@ -18,7 +18,6 @@ const elements = {
   resolutionDialog: document.querySelector("#resolution-dialog"),
   resolutionDialogMessage: document.querySelector("#resolution-dialog-message"),
   runWall: document.querySelector("#run-wall"),
-  saveState: document.querySelector("#save-state"),
   shortcutHint: document.querySelector("#shortcut-hint"),
   slotEnabled: document.querySelector("#slot-enabled"),
   slotName: document.querySelector("#slot-name"),
@@ -234,7 +233,6 @@ function validateSelectedUrl() {
 
 function markChanged(delay = 500) {
   mutationRevision += 1;
-  elements.saveState.textContent = "변경사항 저장 중…";
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => enqueueSave(mutationRevision), delay);
 }
@@ -250,12 +248,10 @@ function enqueueSave(revision) {
       savedRevision = Math.max(savedRevision, revision);
       if (revision === mutationRevision) {
         config = saved;
-        elements.saveState.textContent = "모든 변경사항 저장됨";
       }
     })
     .catch((error) => {
       queuedRevision = savedRevision;
-      elements.saveState.textContent = "설정 저장 실패";
       showToast(error.message, true);
     });
 
@@ -374,7 +370,6 @@ async function initialize() {
     statuses = initial.statuses;
     elements.shortcutHint.textContent = `실행 중 ${initial.shortcut}로 관리 화면 복귀`;
     elements.previewState.textContent = "5초 자동 갱신";
-    elements.saveState.textContent = "모든 변경사항 저장됨";
     renderAll();
   } catch (error) {
     elements.systemState.className = "system-state is-error";

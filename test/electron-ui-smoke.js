@@ -70,7 +70,8 @@ app.whenReady().then(async () => {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       runBounds: document.querySelector('#run-wall')?.getBoundingClientRect().toJSON(),
       autoRefreshLabel: document.querySelector('#preview-state')?.textContent,
-      hasManualRefreshButtons: document.body.innerText.includes('새로고침') || document.body.innerText.includes('미리보기 갱신')
+      hasManualRefreshButtons: document.body.innerText.includes('새로고침') || document.body.innerText.includes('미리보기 갱신'),
+      hasSavedMessage: document.body.innerText.includes('모든 변경사항 저장됨')
     })`);
 
     assert.equal(initial.tileCount, 4);
@@ -80,6 +81,7 @@ app.whenReady().then(async () => {
     assert.equal(initial.runLabel, "RUN");
     assert.equal(initial.autoRefreshLabel, "5초 자동 갱신");
     assert.equal(initial.hasManualRefreshButtons, false);
+    assert.equal(initial.hasSavedMessage, false);
     assert.ok(initial.runBounds.right <= initial.viewport.width);
     assert.ok(initial.runBounds.bottom <= initial.viewport.height);
 
