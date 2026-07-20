@@ -48,7 +48,7 @@ app.whenReady().then(async () => {
     const previews = await controller.captureAll();
 
     assert.equal(controller.views.length, 4);
-    assert.equal(controller.overlayViews.size, 3);
+    assert.equal(controller.overlayViews.size, 1);
     assert.equal(statuses.filter((status) => status.state === "ready").length >= 4, true);
     assert.equal(
       previews.every((preview) => preview?.dataUrl?.startsWith("data:image/png")),
@@ -86,40 +86,34 @@ app.whenReady().then(async () => {
         view.webContents.executeJavaScript("location.hash.slice(1)"),
       ),
     );
-    assert.deepEqual(loadedPanels.sort(), ["actions", "hint", "status"]);
+    assert.deepEqual(loadedPanels, ["hint"]);
+
+    const hintUi = await controller.overlayViews.get("hint").webContents.executeJavaScript(`({
+      text: document.body.textContent.replace(/\\s+/g, " ").trim(),
+      buttonCount: document.querySelectorAll("button").length,
+      backdropFilter: getComputedStyle(document.querySelector(".hint-panel")).backdropFilter
+    })`);
+    assert.equal(hintUi.text, "ESC 관리 화면");
+    assert.equal(hintUi.buttonCount, 0);
+    assert.notEqual(hintUi.backdropFilter, "none");
 
     controller.running = true;
     controller.showOverlay();
     assert.equal(controller.overlayControlsVisible, true);
-    assert.deepEqual(controller.overlayPanelVisibility, {
-      status: true,
-      actions: true,
-      hint: true,
-    });
+    assert.deepEqual(controller.overlayPanelVisibility, { hint: true });
 
-    controller.handleOverlayHover("actions", true);
+    controller.handleOverlayHover("hint", true);
     controller.hideOverlay();
     assert.equal(controller.overlayControlsVisible, true);
-    controller.handleOverlayHover("actions", false);
+    controller.handleOverlayHover("hint", false);
     clearTimeout(controller.overlayHideTimer);
     controller.overlayHideTimer = null;
     controller.hideOverlay();
     assert.equal(controller.overlayControlsVisible, false);
-    assert.deepEqual(controller.overlayPanelVisibility, {
-      status: false,
-      actions: false,
-      hint: false,
-    });
+    assert.deepEqual(controller.overlayPanelVisibility, { hint: false });
 
     controller.setStatus(0, "error", "smoke error");
-    assert.deepEqual(controller.overlayPanelVisibility, {
-      status: true,
-      actions: false,
-      hint: false,
-    });
-
-    controller.setStatus(0, "ready");
-    assert.equal(controller.overlayPanelVisibility.status, false);
+    assert.deepEqual(controller.overlayPanelVisibility, { hint: false });
 
     let prevented = false;
     controller.handleShortcutInput(
@@ -145,6 +139,9 @@ app.whenReady().then(async () => {
     );
     assert.equal(prevented, true);
     assert.equal(managerRequests, 2);
+
+    controller.window.emit("leave-full-screen");
+    assert.equal(managerRequests, 3);
     controller.running = false;
 
     console.log(

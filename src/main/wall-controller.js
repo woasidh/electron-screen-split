@@ -7,7 +7,7 @@ const { calculateOutputZoom, calculateQuadrants, getOutputInfo } = require("./la
 
 const MANAGER_SHORTCUT_KEY = "m";
 const OVERLAY_HIDE_DELAY = 3000;
-const OVERLAY_PANELS = ["status", "actions", "hint"];
+const OVERLAY_PANELS = ["hint"];
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -124,7 +124,8 @@ class WallController {
     });
     this.window.on("resize", () => this.layoutViews());
     this.window.on("enter-full-screen", () => this.layoutViews());
-    this.window.on("leave-full-screen", () => this.layoutViews());
+    this.window.on("leave-full-screen", () => this.handleFullscreenExit());
+    this.window.on("leave-html-full-screen", () => this.handleFullscreenExit());
     this.window.on("close", (event) => {
       if (this.destroying) return;
       event.preventDefault();
@@ -219,8 +220,6 @@ class WallController {
           this.handleOverlayHover(payload?.panel || panel, Boolean(payload?.hovering));
         }
       });
-      view.webContents.on("did-finish-load", () => this.sendOverlayStatus(view));
-
       this.window.contentView.addChildView(view);
       this.overlayViews.set(panel, view);
       return view.webContents.loadFile(overlayPath, { hash: panel });
@@ -242,6 +241,11 @@ class WallController {
 
     event.preventDefault();
     this.onManagerShortcut();
+  }
+
+  handleFullscreenExit() {
+    this.layoutViews();
+    if (this.running) this.onManagerShortcut();
   }
 
   ensurePreviewWindows() {
@@ -317,26 +321,12 @@ class WallController {
     if (this.overlayViews.size !== OVERLAY_PANELS.length) return;
 
     const margin = 24;
-    const statusWidth = Math.min(220, Math.max(140, width - margin * 2));
-    const actionsWidth = Math.min(300, Math.max(220, width - margin * 2));
-    const hintWidth = Math.min(220, Math.max(170, width - margin * 2));
-    this.overlayViews.get("status").setBounds({
-      x: margin,
-      y: margin,
-      width: statusWidth,
-      height: 48,
-    });
-    this.overlayViews.get("actions").setBounds({
-      x: Math.max(margin, width - margin - actionsWidth),
-      y: margin,
-      width: actionsWidth,
-      height: 52,
-    });
+    const hintWidth = Math.min(240, Math.max(180, width - margin * 2));
     this.overlayViews.get("hint").setBounds({
       x: Math.max(margin, width - margin - hintWidth),
-      y: Math.max(margin, height - margin - 42),
+      y: Math.max(margin, height - margin - 50),
       width: hintWidth,
-      height: 42,
+      height: 50,
     });
   }
 
@@ -408,13 +398,6 @@ class WallController {
   async reloadSlot(index) {
     if (!Number.isInteger(index) || index < 0 || index >= this.views.length) return;
     await this.loadSlot(index);
-  }
-
-  async reloadAll() {
-    if (!this.config) return;
-    await Promise.all(
-      this.config.slots.map((_slot, index) => this.loadSlot(index)),
-    );
   }
 
   scheduleCapture(index) {
@@ -535,49 +518,6 @@ class WallController {
     const status = { index, state, message, updatedAt: Date.now() };
     this.statuses[index] = status;
     this.onStatus(status);
-    this.sendOverlayStatus();
-  }
-
-  getOverlayStatus() {
-    const activeStatuses = this.statuses.filter(
-      (_status, index) => this.config?.slots[index]?.enabled,
-    );
-    const errorCount = activeStatuses.filter((status) => status.state === "error").length;
-    const readyCount = activeStatuses.filter((status) => status.state === "ready").length;
-    const activeCount = activeStatuses.length;
-
-    if (errorCount > 0) {
-      return {
-        state: "error",
-        hasError: true,
-        label: `${errorCount}개 화면 오류`,
-      };
-    }
-    if (activeCount > 0 && readyCount === activeCount) {
-      return {
-        state: "ready",
-        hasError: false,
-        label: `${readyCount}/${activeCount} 정상`,
-      };
-    }
-    return {
-      state: "loading",
-      hasError: false,
-      label: `${readyCount}/${activeCount || 4} 로딩 중`,
-    };
-  }
-
-  sendOverlayStatus(targetView = null) {
-    const status = this.getOverlayStatus();
-    const targets = targetView ? [targetView] : [...this.overlayViews.values()];
-    targets.forEach((view) => {
-      if (!view.webContents.isDestroyed()) {
-        view.webContents.send("wall-overlay:status", status);
-      }
-    });
-
-    if (!this.running || this.overlayControlsVisible) return;
-    this.setOverlayPanelVisible("status", status.hasError);
   }
 
   setOverlayPanelVisible(panel, visible) {
@@ -594,7 +534,6 @@ class WallController {
       OVERLAY_PANELS.forEach((panel) => this.setOverlayPanelVisible(panel, true));
       this.setCursorHidden(false);
     }
-    this.sendOverlayStatus();
     this.scheduleOverlayHide();
   }
 
@@ -612,9 +551,7 @@ class WallController {
   hideOverlay() {
     if (!this.running || this.overlayHoverPanels.size > 0) return;
     this.overlayControlsVisible = false;
-    this.setOverlayPanelVisible("actions", false);
     this.setOverlayPanelVisible("hint", false);
-    this.setOverlayPanelVisible("status", this.getOverlayStatus().hasError);
     this.setCursorHidden(true);
   }
 
@@ -643,13 +580,6 @@ class WallController {
   handleOverlayAction(action) {
     if (action === "manager") {
       this.onManagerShortcut();
-      return;
-    }
-    if (action === "refresh") {
-      this.showOverlay();
-      this.reloadAll().catch((error) => {
-        console.error("전체 화면 새로고침 실패", error);
-      });
     }
   }
 
