@@ -39,10 +39,19 @@ function getOutputInfo(display) {
   };
 }
 
+function calculateOutputZoom(configuredZoom, scaleFactor) {
+  const zoom = Number(configuredZoom);
+  const scale = Number(scaleFactor);
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  return Math.round((safeZoom / safeScale) * 10000) / 10000;
+}
+
 module.exports = {
   SLOT_COUNT,
   TARGET_HEIGHT,
   TARGET_WIDTH,
+  calculateOutputZoom,
   calculateQuadrants,
   getOutputInfo,
 };

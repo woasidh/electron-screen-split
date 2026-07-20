@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  calculateOutputZoom,
   calculateQuadrants,
   getOutputInfo,
 } = require("../src/main/layout");
@@ -32,6 +33,13 @@ test("논리 해상도와 배율로 물리 출력 해상도를 계산한다", ()
   assert.equal(output.physicalWidth, 3840);
   assert.equal(output.physicalHeight, 2160);
   assert.equal(output.isTargetResolution, true);
+});
+
+test("RUN 출력 확대율은 OS 화면 배율을 상쇄한다", () => {
+  assert.equal(calculateOutputZoom(1, 2), 0.5);
+  assert.equal(calculateOutputZoom(1, 1.5), 0.6667);
+  assert.equal(calculateOutputZoom(1.25, 1.25), 1);
+  assert.equal(calculateOutputZoom(1, 0), 1);
 });
 
 test("유효하지 않은 화면 크기를 거부한다", () => {

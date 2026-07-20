@@ -57,8 +57,25 @@ app.whenReady().then(async () => {
     );
     assert.deepEqual(
       controller.views.map((view) => Math.round(view.webContents.getZoomFactor() * 10) / 10),
-      [1, 1.1, 1.2, 1.3],
+      config.slots.map(
+        (slot) => Math.round((slot.zoom / controller.getOutputInfo().scaleFactor) * 10) / 10,
+      ),
     );
+
+    const outputViewports = await Promise.all(
+      controller.views.map((view) =>
+        view.webContents.executeJavaScript("({ width: innerWidth, height: innerHeight })"),
+      ),
+    );
+    const previewViewports = await Promise.all(
+      controller.previewWindows.map((window) =>
+        window.webContents.executeJavaScript("({ width: innerWidth, height: innerHeight })"),
+      ),
+    );
+    outputViewports.forEach((viewport, index) => {
+      assert.equal(Math.abs(viewport.width - previewViewports[index].width) <= 1, true);
+      assert.equal(Math.abs(viewport.height - previewViewports[index].height) <= 1, true);
+    });
 
     const bounds = controller.views.map((view) => view.getBounds());
     assert.equal(bounds[0].width + bounds[1].width, controller.window.getContentSize()[0]);
@@ -138,6 +155,8 @@ app.whenReady().then(async () => {
         previewCaptures: previews.length,
         layoutCoversWindow: true,
         escapeReturnsToManager: true,
+        outputMatchesPreviewViewport: true,
+        output: controller.getOutputInfo(),
       }),
     );
     controller.destroy();

@@ -3,13 +3,11 @@ const path = require("node:path");
 const { BrowserWindow, WebContentsView, screen } = require("electron");
 
 const { isSafeRemoteUrl, normalizeConfig } = require("./config-store");
-const { calculateQuadrants, getOutputInfo } = require("./layout");
+const { calculateOutputZoom, calculateQuadrants, getOutputInfo } = require("./layout");
 
 const MANAGER_SHORTCUT_KEY = "m";
 const OVERLAY_HIDE_DELAY = 3000;
 const OVERLAY_PANELS = ["status", "actions", "hint"];
-const PREVIEW_WIDTH = 1920;
-const PREVIEW_HEIGHT = 1080;
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -58,6 +56,23 @@ class WallController {
 
   getPartition(index) {
     return `wall-slot-${index + 1}`;
+  }
+
+  getOutputZoom(index) {
+    const configuredZoom = this.config?.slots[index]?.zoom || 1;
+    return calculateOutputZoom(configuredZoom, screen.getPrimaryDisplay().scaleFactor);
+  }
+
+  applyOutputZoom(index) {
+    const view = this.views[index];
+    if (!view || view.webContents.isDestroyed()) return;
+    view.webContents.setZoomFactor(this.getOutputZoom(index));
+  }
+
+  applyPreviewZoom(index) {
+    const previewWindow = this.previewWindows[index];
+    if (!previewWindow || previewWindow.isDestroyed()) return;
+    previewWindow.webContents.setZoomFactor(this.getOutputZoom(index));
   }
 
   configureSession(contents) {
@@ -150,7 +165,7 @@ class WallController {
       });
       view.webContents.on("did-finish-load", () => {
         if (!this.config?.slots[index]?.enabled) return;
-        view.webContents.setZoomFactor(this.config.slots[index].zoom);
+        this.applyOutputZoom(index);
         this.setStatus(index, "ready");
         if (this.running && this.cursorShouldBeHidden) {
           this.reapplyCursorStyle(index);
@@ -241,10 +256,12 @@ class WallController {
       if (!window.isDestroyed()) window.destroy();
     });
 
+    const display = screen.getPrimaryDisplay();
+    const previewBounds = calculateQuadrants(display.bounds.width, display.bounds.height);
     this.previewWindows = Array.from({ length: 4 }, (_, index) => {
       const previewWindow = new BrowserWindow({
-        width: PREVIEW_WIDTH,
-        height: PREVIEW_HEIGHT,
+        width: previewBounds[index].width,
+        height: previewBounds[index].height,
         show: false,
         frame: false,
         backgroundColor: "#000000",
@@ -266,7 +283,7 @@ class WallController {
       previewWindow.webContents.setAudioMuted(true);
       previewWindow.webContents.on("did-finish-load", () => {
         if (!this.config?.slots[index]?.enabled || this.running) return;
-        previewWindow.webContents.setZoomFactor(this.config.slots[index].zoom);
+        this.applyPreviewZoom(index);
         this.scheduleCapture(index);
       });
       previewWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -284,7 +301,15 @@ class WallController {
     if (width < 2 || height < 2) return;
 
     const bounds = calculateQuadrants(width, height);
-    this.views.forEach((view, index) => view.setBounds(bounds[index]));
+    this.views.forEach((view, index) => {
+      view.setBounds(bounds[index]);
+      this.applyOutputZoom(index);
+      const previewWindow = this.previewWindows[index];
+      if (previewWindow && !previewWindow.isDestroyed()) {
+        previewWindow.setContentSize(bounds[index].width, bounds[index].height);
+        this.applyPreviewZoom(index);
+      }
+    });
     this.layoutOverlayViews(width, height);
   }
 
@@ -344,8 +369,8 @@ class WallController {
           return;
         }
 
-        this.views[index].webContents.setZoomFactor(slot.zoom);
-        this.previewWindows[index].webContents.setZoomFactor(slot.zoom);
+        this.applyOutputZoom(index);
+        this.applyPreviewZoom(index);
         if (mustReload) {
           await this.loadSlot(index);
         } else if (previousSlot.zoom !== slot.zoom) {
