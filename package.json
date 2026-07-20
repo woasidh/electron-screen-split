@@ -1,16 +1,67 @@
 {
-  "name": "electron-quad-window",
+  "name": "screen-wall-control",
   "version": "1.0.0",
-  "description": "",
+  "description": "2x2 video wall web page controller",
   "main": "index.js",
   "scripts": {
     "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/*.test.js",
+    "smoke": "electron test/electron-ui-smoke.js",
+    "smoke:wall": "electron test/electron-wall-smoke.js",
+    "check": "node --check index.js && node --check src/main/index.js && node --check src/main/wall-controller.js && node --check src/renderer/app.js",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
   },
-  "keywords": [],
+  "keywords": [
+    "electron",
+    "video-wall"
+  ],
   "author": "",
   "license": "ISC",
+  "build": {
+    "appId": "com.screenwall.control",
+    "productName": "Screen Wall Control",
+    "asar": true,
+    "files": [
+      "index.js",
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
   "devDependencies": {
-    "electron": "^33.0.2"
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
   }
 }

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Wall Control</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </span>
+          <div>
+            <strong>Screen Wall Control</strong>
+            <span>2×2 비디오월 관리자</span>
+          </div>
+        </div>
+        <div class="system-state" id="system-state">
+          <span class="status-dot"></span>
+          <span id="system-state-label">시스템 확인 중</span>
+        </div>
+      </header>
+
+      <section class="output-strip" aria-label="출력 정보">
+        <div>
+          <span>출력 감지</span>
+          <strong id="output-resolution">확인 중</strong>
+        </div>
+        <div>
+          <span>레이아웃</span>
+          <strong>2 × 2</strong>
+        </div>
+        <div>
+          <span>활성 화면</span>
+          <strong id="active-count">0 / 4</strong>
+        </div>
+        <div class="output-warning" id="output-warning" hidden>
+          3840×2160 출력이 아님
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="panel preview-panel" aria-labelledby="preview-title">
+          <div class="panel-heading">
+            <div>
+              <h1 id="preview-title">출력 미리보기</h1>
+              <p>실제 출력 비율 · 화면을 클릭하면 설정 가능</p>
+            </div>
+            <span class="state-badge" id="preview-state">불러오는 중</span>
+          </div>
+
+          <div class="drag-guide" role="note">
+            <span class="drag-icon" aria-hidden="true">↕</span>
+            <span><strong>위치 변경</strong> 화면을 원하는 칸으로 끌어 놓으면 URL·확대율·사용 상태가 함께 교환됨</span>
+          </div>
+
+          <div class="wall-frame" id="wall-frame" aria-label="2×2 화면 배치"></div>
+
+          <div class="preview-meta">
+            <span id="preview-updated">미리보기 준비 중</span>
+            <span>각 화면 1920 × 1080 기준</span>
+          </div>
+        </section>
+
+        <aside class="panel settings-panel" aria-labelledby="slot-name">
+          <div class="slot-heading">
+            <div>
+              <h2 id="slot-name">화면 선택</h2>
+              <p>선택 화면 설정</p>
+            </div>
+            <label class="switch-control">
+              <input id="slot-enabled" type="checkbox">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>사용</span>
+            </label>
+          </div>
+
+          <label class="field-label" for="slot-url">URL</label>
+          <input
+            class="text-input"
+            id="slot-url"
+            type="url"
+            inputmode="url"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="https://example.com"
+          >
+          <p class="field-message" id="url-message">HTTP 또는 HTTPS 주소 입력</p>
+
+          <div class="zoom-heading">
+            <label class="field-label" for="slot-zoom">확대율</label>
+            <output id="zoom-value" for="slot-zoom">100%</output>
+          </div>
+          <input id="slot-zoom" class="range-input" type="range" min="50" max="150" step="5" value="100">
+          <div class="range-labels" aria-hidden="true"><span>50%</span><span>150%</span></div>
+
+          <div class="slot-status" id="slot-status">
+            <span class="status-dot"></span>
+            <span id="slot-status-label">대기 중</span>
+          </div>
+
+          <button class="button button-block" id="reload-selected" type="button">
+            선택 화면 새로고침
+          </button>
+        </aside>
+      </main>
+
+      <footer class="action-bar">
+        <div>
+          <span class="save-state" id="save-state">설정 준비 중</span>
+          <span class="shortcut-hint" id="shortcut-hint"></span>
+        </div>
+        <div class="actions">
+          <button class="button" id="refresh-preview" type="button">미리보기 갱신</button>
+          <button class="button button-primary" id="run-wall" type="button">RUN</button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <dialog class="confirm-dialog" id="resolution-dialog">
+      <form method="dialog">
+        <h2>출력 해상도 확인 필요</h2>
+        <p id="resolution-dialog-message"></p>
+        <div class="dialog-actions">
+          <button class="button" value="cancel">취소</button>
+          <button class="button button-primary" value="continue">계속 실행</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
