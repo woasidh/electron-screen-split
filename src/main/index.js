@@ -14,6 +14,7 @@ const { ConfigStore, getConfigIssues } = require("./config-store");
 const { WallController } = require("./wall-controller");
 
 const MANAGER_SHORTCUT = "CommandOrControl+Shift+M";
+const WALL_ESCAPE_SHORTCUT = "Esc";
 
 let managerWindow = null;
 let configStore = null;
@@ -29,10 +30,19 @@ function sendToManager(channel, payload) {
 }
 
 function showManager() {
+  globalShortcut.unregister(WALL_ESCAPE_SHORTCUT);
   wallController?.stop();
   if (!managerWindow || managerWindow.isDestroyed()) return;
   managerWindow.show();
   managerWindow.focus();
+}
+
+function registerWallEscapeShortcut() {
+  globalShortcut.unregister(WALL_ESCAPE_SHORTCUT);
+  const registered = globalShortcut.register(WALL_ESCAPE_SHORTCUT, showManager);
+  if (!registered) {
+    console.warn(`${WALL_ESCAPE_SHORTCUT} 단축키 등록에 실패해 키오스크 상태 감시를 사용합니다.`);
+  }
 }
 
 function createManagerWindow() {
@@ -107,6 +117,7 @@ function registerIpcHandlers() {
     const issues = getConfigIssues(configStore.get());
     if (issues.length > 0) throw new Error(issues.map((issue) => issue.message).join("\n"));
     wallController.run();
+    registerWallEscapeShortcut();
     managerWindow.hide();
     return true;
   });

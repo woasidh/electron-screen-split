@@ -38,6 +38,7 @@ class WallController {
     this.cursorShouldBeHidden = false;
     this.cursorStyleGeneration = 0;
     this.cursorCssKeys = Array.from({ length: 4 }, () => null);
+    this.kioskGuardTimer = null;
     this.running = false;
     this.destroying = false;
   }
@@ -248,6 +249,17 @@ class WallController {
     if (this.running) this.onManagerShortcut();
   }
 
+  checkKioskState(isKiosk = null) {
+    if (!this.running || !this.window || this.window.isDestroyed()) return;
+    const currentlyKiosk = typeof isKiosk === "boolean" ? isKiosk : this.window.isKiosk();
+    if (!currentlyKiosk) this.onManagerShortcut();
+  }
+
+  startKioskGuard() {
+    clearInterval(this.kioskGuardTimer);
+    this.kioskGuardTimer = setInterval(() => this.checkKioskState(), 100);
+  }
+
   ensurePreviewWindows() {
     if (
       this.previewWindows.length === 4 &&
@@ -321,12 +333,12 @@ class WallController {
     if (this.overlayViews.size !== OVERLAY_PANELS.length) return;
 
     const margin = 24;
-    const hintWidth = Math.min(240, Math.max(180, width - margin * 2));
+    const hintWidth = Math.min(252, Math.max(190, width - margin * 2));
     this.overlayViews.get("hint").setBounds({
       x: Math.max(margin, width - margin - hintWidth),
-      y: Math.max(margin, height - margin - 50),
+      y: Math.max(margin, height - margin - 58),
       width: hintWidth,
-      height: 50,
+      height: 58,
     });
   }
 
@@ -470,12 +482,15 @@ class WallController {
     this.window.show();
     this.window.setKiosk(true);
     this.window.focus();
+    this.startKioskGuard();
     this.showOverlay();
   }
 
   stop() {
     if (!this.window || this.window.isDestroyed()) return;
     this.running = false;
+    clearInterval(this.kioskGuardTimer);
+    this.kioskGuardTimer = null;
     clearTimeout(this.overlayHideTimer);
     this.overlayHideTimer = null;
     this.overlayHoverPanels.clear();
@@ -493,6 +508,8 @@ class WallController {
 
   destroy() {
     this.destroying = true;
+    clearInterval(this.kioskGuardTimer);
+    this.kioskGuardTimer = null;
     clearTimeout(this.overlayHideTimer);
     this.overlayHideTimer = null;
     this.cursorStyleGeneration += 1;

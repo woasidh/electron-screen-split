@@ -91,11 +91,13 @@ app.whenReady().then(async () => {
     const hintUi = await controller.overlayViews.get("hint").webContents.executeJavaScript(`({
       text: document.body.textContent.replace(/\\s+/g, " ").trim(),
       buttonCount: document.querySelectorAll("button").length,
-      backdropFilter: getComputedStyle(document.querySelector(".hint-panel")).backdropFilter
+      backdropFilter: getComputedStyle(document.querySelector(".hint-panel")).backdropFilter,
+      keycapBackground: getComputedStyle(document.querySelector(".keycap")).backgroundColor
     })`);
     assert.equal(hintUi.text, "ESC 관리 화면");
     assert.equal(hintUi.buttonCount, 0);
     assert.notEqual(hintUi.backdropFilter, "none");
+    assert.equal(hintUi.keycapBackground, "rgb(230, 33, 23)");
 
     controller.running = true;
     controller.showOverlay();
@@ -142,6 +144,8 @@ app.whenReady().then(async () => {
 
     controller.window.emit("leave-full-screen");
     assert.equal(managerRequests, 3);
+    controller.checkKioskState(false);
+    assert.equal(managerRequests, 4);
     controller.running = false;
 
     console.log(
