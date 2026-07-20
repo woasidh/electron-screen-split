@@ -8,7 +8,7 @@
     "test": "node --test test/*.test.js",
     "smoke": "electron test/electron-ui-smoke.js",
     "smoke:wall": "electron test/electron-wall-smoke.js",
-    "check": "node --check index.js && node --check src/main/index.js && node --check src/main/wall-controller.js && node --check src/renderer/app.js",
+    "check": "node --check index.js && node --check src/main/index.js && node --check src/main/wall-controller.js && node --check src/preload.js && node --check src/overlay-preload.js && node --check src/renderer/app.js && node --check src/renderer/overlay.js",
     "pack": "electron-builder --dir",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win"

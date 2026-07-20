@@ -24,8 +24,11 @@ app.whenReady().then(async () => {
   const server = await createServer();
   const { port } = server.address();
   const statuses = [];
+  let managerRequests = 0;
   const controller = new WallController({
-    onManagerShortcut: () => {},
+    onManagerShortcut: () => {
+      managerRequests += 1;
+    },
     onPreview: () => {},
     onStatus: (status) => statuses.push(status),
   });
@@ -41,9 +44,11 @@ app.whenReady().then(async () => {
     };
 
     await controller.applyConfig(config, { forceReload: true });
+    await controller.overlayReady;
     const previews = await controller.captureAll();
 
     assert.equal(controller.views.length, 4);
+    assert.equal(controller.overlayViews.size, 3);
     assert.equal(statuses.filter((status) => status.state === "ready").length >= 4, true);
     assert.equal(
       previews.every((preview) => preview?.dataUrl?.startsWith("data:image/png")),
@@ -59,12 +64,80 @@ app.whenReady().then(async () => {
     assert.equal(bounds[0].width + bounds[1].width, controller.window.getContentSize()[0]);
     assert.equal(bounds[0].height + bounds[2].height, controller.window.getContentSize()[1]);
 
+    const loadedPanels = await Promise.all(
+      [...controller.overlayViews.values()].map((view) =>
+        view.webContents.executeJavaScript("location.hash.slice(1)"),
+      ),
+    );
+    assert.deepEqual(loadedPanels.sort(), ["actions", "hint", "status"]);
+
+    controller.running = true;
+    controller.showOverlay();
+    assert.equal(controller.overlayControlsVisible, true);
+    assert.deepEqual(controller.overlayPanelVisibility, {
+      status: true,
+      actions: true,
+      hint: true,
+    });
+
+    controller.handleOverlayHover("actions", true);
+    controller.hideOverlay();
+    assert.equal(controller.overlayControlsVisible, true);
+    controller.handleOverlayHover("actions", false);
+    clearTimeout(controller.overlayHideTimer);
+    controller.overlayHideTimer = null;
+    controller.hideOverlay();
+    assert.equal(controller.overlayControlsVisible, false);
+    assert.deepEqual(controller.overlayPanelVisibility, {
+      status: false,
+      actions: false,
+      hint: false,
+    });
+
+    controller.setStatus(0, "error", "smoke error");
+    assert.deepEqual(controller.overlayPanelVisibility, {
+      status: true,
+      actions: false,
+      hint: false,
+    });
+
+    controller.setStatus(0, "ready");
+    assert.equal(controller.overlayPanelVisibility.status, false);
+
+    let prevented = false;
+    controller.handleShortcutInput(
+      {
+        preventDefault: () => {
+          prevented = true;
+        },
+      },
+      { type: "keyDown", key: "Escape" },
+    );
+    assert.equal(prevented, true);
+    assert.equal(managerRequests, 1);
+
+    prevented = false;
+    controller.window.webContents.emit(
+      "before-input-event",
+      {
+        preventDefault: () => {
+          prevented = true;
+        },
+      },
+      { type: "keyDown", key: "Escape" },
+    );
+    assert.equal(prevented, true);
+    assert.equal(managerRequests, 2);
+    controller.running = false;
+
     console.log(
       JSON.stringify({
         status: "ok",
         webContentsViews: controller.views.length,
+        overlayViews: controller.overlayViews.size,
         previewCaptures: previews.length,
         layoutCoversWindow: true,
+        escapeReturnsToManager: true,
       }),
     );
     controller.destroy();

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'"
+    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wall Controls</title>
+    <link rel="stylesheet" href="./overlay.css">
+    <script src="./overlay.js" defer></script>
+  </head>
+  <body>
+    <section class="overlay-panel status-panel" data-panel="status" hidden>
+      <button id="status-button" type="button" aria-label="비디오월 상태">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-label">화면 확인 중</span>
+      </button>
+    </section>
+
+    <section class="overlay-panel actions-panel" data-panel="actions" hidden>
+      <button data-action="refresh" type="button" aria-label="전체 새로고침">
+        <span aria-hidden="true">↻</span>
+        <span>전체 새로고침</span>
+      </button>
+      <button class="primary-action" data-action="manager" type="button" aria-label="관리 화면으로 복귀">
+        <span aria-hidden="true">⚙</span>
+        <span>관리 화면</span>
+      </button>
+    </section>
+
+    <section class="overlay-panel hint-panel" data-panel="hint" hidden>
+      <span class="keycap">ESC</span>
+      <span>관리 화면</span>
+    </section>
+  </body>
+</html>

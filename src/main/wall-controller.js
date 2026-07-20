@@ -6,6 +6,8 @@ const { isSafeRemoteUrl, normalizeConfig } = require("./config-store");
 const { calculateQuadrants, getOutputInfo } = require("./layout");
 
 const MANAGER_SHORTCUT_KEY = "m";
+const OVERLAY_HIDE_DELAY = 3000;
+const OVERLAY_PANELS = ["status", "actions", "hint"];
 const PREVIEW_WIDTH = 1920;
 const PREVIEW_HEIGHT = 1080;
 
@@ -20,12 +22,24 @@ class WallController {
     this.onStatus = onStatus;
     this.window = null;
     this.views = [];
+    this.overlayViews = new Map();
+    this.overlayReady = Promise.resolve();
     this.previewWindows = [];
     this.configuredSessions = new WeakSet();
     this.config = null;
     this.statuses = Array.from({ length: 4 }, () => ({ state: "idle" }));
     this.previews = Array.from({ length: 4 }, () => null);
     this.captureTimers = new Map();
+    this.overlayHideTimer = null;
+    this.overlayHoverPanels = new Set();
+    this.overlayControlsVisible = false;
+    this.lastPointerActivityAt = 0;
+    this.overlayPanelVisibility = Object.fromEntries(
+      OVERLAY_PANELS.map((panel) => [panel, false]),
+    );
+    this.cursorShouldBeHidden = false;
+    this.cursorStyleGeneration = 0;
+    this.cursorCssKeys = Array.from({ length: 4 }, () => null);
     this.running = false;
     this.destroying = false;
   }
@@ -90,6 +104,9 @@ class WallController {
     });
 
     this.window.loadFile(path.join(__dirname, "../renderer/wall.html"));
+    this.window.webContents.on("before-input-event", (event, input) => {
+      this.handleShortcutInput(event, input);
+    });
     this.window.on("resize", () => this.layoutViews());
     this.window.on("enter-full-screen", () => this.layoutViews());
     this.window.on("leave-full-screen", () => this.layoutViews());
@@ -101,6 +118,7 @@ class WallController {
     });
 
     this.createViews();
+    this.createOverlayViews();
     this.layoutViews();
   }
 
@@ -119,10 +137,12 @@ class WallController {
 
       view.setBackgroundColor("#000000");
       this.configureRemoteContents(view.webContents);
-      view.webContents.on("before-input-event", (_event, input) => {
-        const key = String(input.key || "").toLowerCase();
-        if (key === MANAGER_SHORTCUT_KEY && input.shift && (input.control || input.meta)) {
-          this.onManagerShortcut();
+      view.webContents.on("before-input-event", (event, input) => {
+        this.handleShortcutInput(event, input);
+      });
+      view.webContents.on("before-mouse-event", (_event, mouse) => {
+        if (mouse.type === "mouseMove" || mouse.type === "mouseEnter") {
+          this.handlePointerActivity();
         }
       });
       view.webContents.on("did-start-loading", () => {
@@ -132,6 +152,9 @@ class WallController {
         if (!this.config?.slots[index]?.enabled) return;
         view.webContents.setZoomFactor(this.config.slots[index].zoom);
         this.setStatus(index, "ready");
+        if (this.running && this.cursorShouldBeHidden) {
+          this.reapplyCursorStyle(index);
+        }
       });
       view.webContents.on(
         "did-fail-load",
@@ -150,6 +173,60 @@ class WallController {
       this.window.contentView.addChildView(view);
       return view;
     });
+  }
+
+  createOverlayViews() {
+    const overlayPath = path.join(__dirname, "../renderer/overlay.html");
+    const preloadPath = path.join(__dirname, "../overlay-preload.js");
+    const loads = OVERLAY_PANELS.map((panel) => {
+      const view = new WebContentsView({
+        webPreferences: {
+          backgroundThrottling: false,
+          contextIsolation: true,
+          nodeIntegration: false,
+          preload: preloadPath,
+          sandbox: true,
+          spellcheck: false,
+        },
+      });
+
+      view.setBackgroundColor("#00000000");
+      view.setVisible(false);
+      view.webContents.on("before-input-event", (event, input) => {
+        this.handleShortcutInput(event, input);
+      });
+      view.webContents.on("ipc-message", (_event, channel, payload) => {
+        if (channel === "wall-overlay:action") {
+          this.handleOverlayAction(payload);
+        } else if (channel === "wall-overlay:activity") {
+          this.handlePointerActivity();
+        } else if (channel === "wall-overlay:hover") {
+          this.handleOverlayHover(payload?.panel || panel, Boolean(payload?.hovering));
+        }
+      });
+      view.webContents.on("did-finish-load", () => this.sendOverlayStatus(view));
+
+      this.window.contentView.addChildView(view);
+      this.overlayViews.set(panel, view);
+      return view.webContents.loadFile(overlayPath, { hash: panel });
+    });
+
+    this.overlayReady = Promise.all(loads).catch((error) => {
+      console.error("오버레이 로딩 실패", error);
+    });
+  }
+
+  handleShortcutInput(event, input) {
+    const type = String(input.type || "").toLowerCase();
+    if (type !== "keydown" && type !== "rawkeydown") return;
+
+    const key = String(input.key || "").toLowerCase();
+    const isManagerShortcut =
+      key === MANAGER_SHORTCUT_KEY && input.shift && (input.control || input.meta);
+    if (key !== "escape" && !isManagerShortcut) return;
+
+    event.preventDefault();
+    this.onManagerShortcut();
   }
 
   ensurePreviewWindows() {
@@ -208,6 +285,34 @@ class WallController {
 
     const bounds = calculateQuadrants(width, height);
     this.views.forEach((view, index) => view.setBounds(bounds[index]));
+    this.layoutOverlayViews(width, height);
+  }
+
+  layoutOverlayViews(width, height) {
+    if (this.overlayViews.size !== OVERLAY_PANELS.length) return;
+
+    const margin = 24;
+    const statusWidth = Math.min(220, Math.max(140, width - margin * 2));
+    const actionsWidth = Math.min(300, Math.max(220, width - margin * 2));
+    const hintWidth = Math.min(220, Math.max(170, width - margin * 2));
+    this.overlayViews.get("status").setBounds({
+      x: margin,
+      y: margin,
+      width: statusWidth,
+      height: 48,
+    });
+    this.overlayViews.get("actions").setBounds({
+      x: Math.max(margin, width - margin - actionsWidth),
+      y: margin,
+      width: actionsWidth,
+      height: 52,
+    });
+    this.overlayViews.get("hint").setBounds({
+      x: Math.max(margin, width - margin - hintWidth),
+      y: Math.max(margin, height - margin - 42),
+      width: hintWidth,
+      height: 42,
+    });
   }
 
   async applyConfig(nextConfig, { forceReload = false } = {}) {
@@ -280,6 +385,13 @@ class WallController {
     await this.loadSlot(index);
   }
 
+  async reloadAll() {
+    if (!this.config) return;
+    await Promise.all(
+      this.config.slots.map((_slot, index) => this.loadSlot(index)),
+    );
+  }
+
   scheduleCapture(index) {
     clearTimeout(this.captureTimers.get(index));
     const timer = setTimeout(() => {
@@ -350,11 +462,18 @@ class WallController {
     this.window.show();
     this.window.setKiosk(true);
     this.window.focus();
+    this.showOverlay();
   }
 
   stop() {
     if (!this.window || this.window.isDestroyed()) return;
     this.running = false;
+    clearTimeout(this.overlayHideTimer);
+    this.overlayHideTimer = null;
+    this.overlayHoverPanels.clear();
+    this.overlayControlsVisible = false;
+    OVERLAY_PANELS.forEach((panel) => this.setOverlayPanelVisible(panel, false));
+    this.setCursorHidden(false);
     this.window.setKiosk(false);
     this.window.hide();
     this.previewWindows.forEach((window, index) => {
@@ -366,6 +485,9 @@ class WallController {
 
   destroy() {
     this.destroying = true;
+    clearTimeout(this.overlayHideTimer);
+    this.overlayHideTimer = null;
+    this.cursorStyleGeneration += 1;
     this.captureTimers.forEach((timer) => clearTimeout(timer));
     this.captureTimers.clear();
     this.previewWindows.forEach((window) => {
@@ -376,6 +498,10 @@ class WallController {
       if (!view.webContents.isDestroyed()) view.webContents.close();
     });
     this.views = [];
+    this.overlayViews.forEach((view) => {
+      if (!view.webContents.isDestroyed()) view.webContents.close();
+    });
+    this.overlayViews.clear();
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
   }
@@ -384,6 +510,169 @@ class WallController {
     const status = { index, state, message, updatedAt: Date.now() };
     this.statuses[index] = status;
     this.onStatus(status);
+    this.sendOverlayStatus();
+  }
+
+  getOverlayStatus() {
+    const activeStatuses = this.statuses.filter(
+      (_status, index) => this.config?.slots[index]?.enabled,
+    );
+    const errorCount = activeStatuses.filter((status) => status.state === "error").length;
+    const readyCount = activeStatuses.filter((status) => status.state === "ready").length;
+    const activeCount = activeStatuses.length;
+
+    if (errorCount > 0) {
+      return {
+        state: "error",
+        hasError: true,
+        label: `${errorCount}개 화면 오류`,
+      };
+    }
+    if (activeCount > 0 && readyCount === activeCount) {
+      return {
+        state: "ready",
+        hasError: false,
+        label: `${readyCount}/${activeCount} 정상`,
+      };
+    }
+    return {
+      state: "loading",
+      hasError: false,
+      label: `${readyCount}/${activeCount || 4} 로딩 중`,
+    };
+  }
+
+  sendOverlayStatus(targetView = null) {
+    const status = this.getOverlayStatus();
+    const targets = targetView ? [targetView] : [...this.overlayViews.values()];
+    targets.forEach((view) => {
+      if (!view.webContents.isDestroyed()) {
+        view.webContents.send("wall-overlay:status", status);
+      }
+    });
+
+    if (!this.running || this.overlayControlsVisible) return;
+    this.setOverlayPanelVisible("status", status.hasError);
+  }
+
+  setOverlayPanelVisible(panel, visible) {
+    const view = this.overlayViews.get(panel);
+    const nextVisible = Boolean(visible && this.running);
+    this.overlayPanelVisibility[panel] = nextVisible;
+    if (view && !view.webContents.isDestroyed()) view.setVisible(nextVisible);
+  }
+
+  showOverlay() {
+    if (!this.running) return;
+    if (!this.overlayControlsVisible) {
+      this.overlayControlsVisible = true;
+      OVERLAY_PANELS.forEach((panel) => this.setOverlayPanelVisible(panel, true));
+      this.setCursorHidden(false);
+    }
+    this.sendOverlayStatus();
+    this.scheduleOverlayHide();
+  }
+
+  scheduleOverlayHide() {
+    clearTimeout(this.overlayHideTimer);
+    this.overlayHideTimer = null;
+    if (!this.running || this.overlayHoverPanels.size > 0) return;
+
+    this.overlayHideTimer = setTimeout(() => {
+      this.overlayHideTimer = null;
+      this.hideOverlay();
+    }, OVERLAY_HIDE_DELAY);
+  }
+
+  hideOverlay() {
+    if (!this.running || this.overlayHoverPanels.size > 0) return;
+    this.overlayControlsVisible = false;
+    this.setOverlayPanelVisible("actions", false);
+    this.setOverlayPanelVisible("hint", false);
+    this.setOverlayPanelVisible("status", this.getOverlayStatus().hasError);
+    this.setCursorHidden(true);
+  }
+
+  handlePointerActivity() {
+    if (!this.running) return;
+    const now = Date.now();
+    if (now - this.lastPointerActivityAt < 80) return;
+    this.lastPointerActivityAt = now;
+    this.showOverlay();
+  }
+
+  handleOverlayHover(panel, hovering) {
+    if (!this.running || !OVERLAY_PANELS.includes(panel)) return;
+    if (hovering) {
+      this.overlayHoverPanels.add(panel);
+      clearTimeout(this.overlayHideTimer);
+      this.overlayHideTimer = null;
+      this.showOverlay();
+      return;
+    }
+
+    this.overlayHoverPanels.delete(panel);
+    this.scheduleOverlayHide();
+  }
+
+  handleOverlayAction(action) {
+    if (action === "manager") {
+      this.onManagerShortcut();
+      return;
+    }
+    if (action === "refresh") {
+      this.showOverlay();
+      this.reloadAll().catch((error) => {
+        console.error("전체 화면 새로고침 실패", error);
+      });
+    }
+  }
+
+  setCursorHidden(hidden) {
+    this.cursorShouldBeHidden = Boolean(hidden && this.running);
+    this.cursorStyleGeneration += 1;
+    const generation = this.cursorStyleGeneration;
+
+    if (!this.cursorShouldBeHidden) {
+      this.views.forEach((view, index) => {
+        const key = this.cursorCssKeys[index];
+        this.cursorCssKeys[index] = null;
+        if (key && !view.webContents.isDestroyed()) {
+          view.webContents.removeInsertedCSS(key).catch(() => {});
+        }
+      });
+      return;
+    }
+
+    this.views.forEach((_view, index) => this.insertCursorStyle(index, generation));
+  }
+
+  reapplyCursorStyle(index) {
+    this.cursorCssKeys[index] = null;
+    this.insertCursorStyle(index, this.cursorStyleGeneration);
+  }
+
+  insertCursorStyle(index, generation) {
+    const view = this.views[index];
+    if (!view || view.webContents.isDestroyed() || this.cursorCssKeys[index]) return;
+
+    view.webContents
+      .insertCSS("html, body, body * { cursor: none !important; }")
+      .then((key) => {
+        if (
+          generation !== this.cursorStyleGeneration ||
+          !this.cursorShouldBeHidden ||
+          !this.running ||
+          view.webContents.isDestroyed()
+        ) {
+          if (!view.webContents.isDestroyed()) {
+            view.webContents.removeInsertedCSS(key).catch(() => {});
+          }
+          return;
+        }
+        this.cursorCssKeys[index] = key;
+      })
+      .catch(() => {});
   }
 }
 

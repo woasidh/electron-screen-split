@@ -10,7 +10,11 @@
 - 설정 자동 저장
 - 3840×2160 출력 상태 확인 및 비표준 해상도 경고
 - `RUN` 실행 시 관리 UI 없이 웹페이지 네 개만 전체화면 출력
-- `CommandOrControl+Shift+M`으로 관리 화면 복귀
+- 마우스 이동 시 실행 상태·전체 새로고침·관리 화면 컨트롤 표시
+- 3초 동안 입력이 없으면 컨트롤과 마우스 커서 자동 숨김
+- 오류 발생 시 상태 배지 상시 표시
+- `ESC`로 즉시 관리 화면 복귀
+- `CommandOrControl+Shift+M` 관리 화면 복귀 예비 단축키
 - Windows/macOS 지원
 
 ## 실행
@@ -29,7 +33,9 @@ npm start
 3. 필요하면 미리보기 화면을 드래그해 위치 교환
 4. `미리보기 갱신`으로 실제 렌더링 확인
 5. `RUN` 실행
-6. 관리 화면 복귀 시 `Ctrl+Shift+M` 또는 `Cmd+Shift+M` 입력
+6. 관리 화면 복귀 시 `ESC` 입력 또는 우측 상단 `관리 화면` 선택
+
+실행 화면에서 마우스를 움직이면 컨트롤이 표시되고 3초 후 자동으로 숨겨짐. 컨트롤 위에 마우스를 올린 동안은 숨김이 정지함. `Ctrl+Shift+M` 또는 `Cmd+Shift+M`은 `ESC`가 전달되지 않는 예외 상황용 단축키임.
 
 설정은 Electron의 OS별 `userData/config.json` 경로에 자동 저장됨.
 
@@ -76,6 +82,8 @@ src/
     app.js               관리 UI 동작
     styles.css           관리 UI 스타일
     wall.html            전체화면 출력 배경
+    overlay.*            실행 화면 상태·조작 오버레이
   preload.js             안전한 IPC 브리지
+  overlay-preload.js     실행 화면 오버레이 IPC 브리지
 test/
 ```
