@@ -1,5 +1,6 @@
 use crate::config_store::{ConfigStore, LoadResult};
 use crate::model::AppConfig;
+use crate::wall::WallController;
 use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
@@ -48,6 +49,7 @@ pub struct AppState {
     pub output: Mutex<OutputInfo>,
     pub warning: Mutex<Option<String>>,
     pub wall_running: AtomicBool,
+    pub wall: Mutex<WallController>,
 }
 
 impl AppState {
@@ -60,6 +62,7 @@ impl AppState {
             output: Mutex::new(output),
             warning: Mutex::new(loaded.warning),
             wall_running: AtomicBool::new(false),
+            wall: Mutex::new(WallController::default()),
         }
     }
 }

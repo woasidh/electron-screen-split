@@ -1,8 +1,10 @@
 pub mod app_state;
+pub mod audio;
 pub mod commands;
 pub mod config_store;
 pub mod layout;
 pub mod model;
+pub mod wall;
 
 use app_state::{AppState, OutputInfo};
 use config_store::ConfigStore;

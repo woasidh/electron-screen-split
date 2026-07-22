@@ -81,15 +81,44 @@ pub fn save_config(
 }
 
 #[tauri::command]
-pub fn run_wall(webview: tauri::Webview) -> Result<(), String> {
+pub async fn run_wall(
+    webview: tauri::Webview,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
     ensure_authorized(&webview, CommandKind::Run)?;
-    Err("출력 기능이 아직 초기화되지 않았습니다.".to_owned())
+    let config = state
+        .config
+        .lock()
+        .map_err(|_| "설정 상태 잠금에 실패했습니다.".to_owned())?
+        .clone();
+    let issues = config.issues();
+    if !issues.is_empty() {
+        return Err(issues.join("\n"));
+    }
+    state
+        .wall
+        .lock()
+        .map_err(|_| "출력 제어 잠금에 실패했습니다.".to_owned())?
+        .run(&app, &state, config)?;
+    state.wall_running.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn stop_wall(webview: tauri::Webview) -> Result<(), String> {
+pub async fn stop_wall(
+    webview: tauri::Webview,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
     ensure_authorized(&webview, CommandKind::Stop)?;
-    Err("출력 기능이 아직 초기화되지 않았습니다.".to_owned())
+    state
+        .wall
+        .lock()
+        .map_err(|_| "출력 제어 잠금에 실패했습니다.".to_owned())?
+        .stop(&app)?;
+    state.wall_running.store(false, Ordering::SeqCst);
+    Ok(())
 }
 
 #[cfg(test)]
