@@ -6,7 +6,7 @@
     "strict": true,
     "noEmit": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vite/client", "vitest/globals"]
   },
   "include": ["src/renderer/**/*.ts", "vite.config.ts"]
 }

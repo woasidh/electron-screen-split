@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'"
     >
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screen Wall Control</title>
     <link rel="stylesheet" href="./styles.css">
-    <script src="./app.js" defer></script>
+    <script type="module" src="./app.ts"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -20,7 +20,7 @@
           </span>
           <div>
             <strong>Screen Wall Control</strong>
-            <span>2×2 비디오월 관리자</span>
+            <span>2×2 웹 월 관리자</span>
           </div>
         </div>
         <div class="system-state" id="system-state">
@@ -30,44 +30,26 @@
       </header>
 
       <section class="output-strip" aria-label="출력 정보">
-        <div>
-          <span>출력 감지</span>
-          <strong id="output-resolution">확인 중</strong>
-        </div>
-        <div>
-          <span>레이아웃</span>
-          <strong>2 × 2</strong>
-        </div>
-        <div>
-          <span>활성 화면</span>
-          <strong id="active-count">0 / 4</strong>
-        </div>
-        <div class="output-warning" id="output-warning" hidden>
-          3840×2160 출력이 아님
-        </div>
+        <div><span>주 모니터</span><strong id="output-resolution">확인 중</strong></div>
+        <div><span>레이아웃</span><strong>2 × 2</strong></div>
+        <div><span>활성 화면</span><strong id="active-count">0 / 4</strong></div>
+        <div class="output-warning" id="output-warning" hidden>3840×2160 출력이 아님</div>
       </section>
 
       <main class="workspace">
-        <section class="panel preview-panel" aria-labelledby="preview-title">
+        <section class="panel screens-panel" aria-labelledby="screens-title">
           <div class="panel-heading">
             <div>
-              <h1 id="preview-title">출력 미리보기</h1>
-              <p>실제 출력 비율 · 화면을 클릭하면 설정 가능</p>
+              <h1 id="screens-title">화면 배치</h1>
+              <p>카드를 선택해 설정 · 드래그로 위치 교환</p>
             </div>
-            <span class="state-badge" id="preview-state">불러오는 중</span>
+            <span class="state-badge">주 모니터 고정</span>
           </div>
-
           <div class="drag-guide" role="note">
             <span class="drag-icon" aria-hidden="true">↕</span>
-            <span><strong>위치 변경</strong> 화면을 원하는 칸으로 끌어 놓으면 URL·확대율·사용 상태가 함께 교환됨</span>
+            <span>교환 시 URL·확대율·사용 상태가 함께 이동함</span>
           </div>
-
-          <div class="wall-frame" id="wall-frame" aria-label="2×2 화면 배치"></div>
-
-          <div class="preview-meta">
-            <span id="preview-updated">미리보기 준비 중</span>
-            <span>각 화면 1920 × 1080 기준</span>
-          </div>
+          <div class="slot-grid" id="slot-grid" aria-label="2×2 화면 배치"></div>
         </section>
 
         <aside class="panel settings-panel" aria-labelledby="slot-name">
@@ -106,15 +88,13 @@
             <span class="status-dot"></span>
             <span id="slot-status-label">대기 중</span>
           </div>
-
         </aside>
       </main>
 
       <footer class="action-bar">
-        <div>
-          <span class="shortcut-hint" id="shortcut-hint"></span>
-        </div>
+        <span class="shortcut-hint" id="shortcut-hint"></span>
         <div class="actions">
+          <button class="button" id="stop-wall" type="button" disabled>출력 종료</button>
           <button class="button button-primary" id="run-wall" type="button">RUN</button>
         </div>
       </footer>
