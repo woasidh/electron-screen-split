@@ -35,6 +35,27 @@ fn create_app_state(app: &tauri::App) -> Result<AppState, Box<dyn std::error::Er
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            let app = app.clone();
+            let _ = std::thread::Builder::new()
+                .name("single-instance-restore".into())
+                .spawn(move || wall::restore_manager(&app));
+        }))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+                    if event.state == ShortcutState::Pressed
+                        && shortcut.matches(Modifiers::empty(), Code::Escape)
+                    {
+                        let app = app.clone();
+                        let _ = std::thread::Builder::new()
+                            .name("escape-restore".into())
+                            .spawn(move || wall::restore_manager(&app));
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let state = create_app_state(app)?;
             app.manage(state);

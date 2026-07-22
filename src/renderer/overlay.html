@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'"
     >
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wall Controls</title>
     <link rel="stylesheet" href="./overlay.css">
-    <script src="./overlay.js" defer></script>
+    <script type="module" src="./overlay.ts"></script>
   </head>
   <body>
-    <section class="overlay-panel hint-panel" data-panel="hint" hidden>
+    <button class="overlay-panel" data-action="manager" type="button" aria-label="관리 화면으로 돌아가기">
       <span class="keycap">ESC</span>
       <span>관리 화면</span>
-    </section>
+    </button>
   </body>
 </html>

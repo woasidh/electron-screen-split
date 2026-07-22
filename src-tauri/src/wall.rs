@@ -2,9 +2,30 @@ use crate::app_state::{initial_statuses, SlotState, SlotStatus};
 use crate::audio::MUTE_SCRIPT;
 use crate::layout::{calculate_output_zoom, calculate_quadrants, Rect};
 use crate::model::AppConfig;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, Webview, WebviewUrl, Window};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut};
 use url::Url;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct OverlayState {
+    last_activity: Option<std::time::Duration>,
+}
+
+impl OverlayState {
+    pub fn record_activity(&mut self, now: std::time::Duration) {
+        self.last_activity = Some(now);
+    }
+
+    pub fn visible_at(&self, now: std::time::Duration) -> bool {
+        self.last_activity
+            .map(|last| now.saturating_sub(last) <= std::time::Duration::from_secs(3))
+            .unwrap_or(false)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct WallModel {
@@ -15,6 +36,9 @@ pub struct WallModel {
 pub struct WallController {
     window: Option<Window>,
     webviews: Vec<Option<Webview>>,
+    overlay: Option<Webview>,
+    pointer_cancel: Option<Arc<AtomicBool>>,
+    shortcut_registered: bool,
     model: WallModel,
 }
 
@@ -23,6 +47,9 @@ impl Default for WallController {
         Self {
             window: None,
             webviews: (0..4).map(|_| None).collect(),
+            overlay: None,
+            pointer_cancel: None,
+            shortcut_registered: false,
             model: WallModel::new(AppConfig::default()),
         }
     }
@@ -96,6 +123,14 @@ impl WallController {
         for (index, rect) in quadrants.iter().copied().enumerate() {
             self.apply_slot(app, &window, &config, index, rect, monitor.scale_factor());
         }
+        self.ensure_overlay(&window, monitor_size)?;
+
+        let shortcut = escape_shortcut();
+        self.shortcut_registered = if app.global_shortcut().is_registered(shortcut) {
+            true
+        } else {
+            app.global_shortcut().register(shortcut).is_ok()
+        };
 
         #[cfg(target_os = "macos")]
         window
@@ -111,6 +146,7 @@ impl WallController {
             .set_always_on_top(true)
             .map_err(|error| error.to_string())?;
         window.set_focus().map_err(|error| error.to_string())?;
+        self.start_pointer_monitor(app, &window);
         if let Some(manager) = app.get_webview_window("manager") {
             manager.hide().map_err(|error| error.to_string())?;
         }
@@ -124,7 +160,18 @@ impl WallController {
     }
 
     pub fn stop(&mut self, app: &tauri::AppHandle) -> Result<(), String> {
+        if let Some(cancel) = self.pointer_cancel.take() {
+            cancel.store(true, Ordering::SeqCst);
+        }
+        if self.shortcut_registered {
+            let _ = app.global_shortcut().unregister(escape_shortcut());
+            self.shortcut_registered = false;
+        }
+        if let Some(overlay) = &self.overlay {
+            let _ = overlay.hide();
+        }
         if let Some(window) = &self.window {
+            let _ = window.set_cursor_visible(true);
             window.hide().map_err(|error| error.to_string())?;
         }
         if let Some(manager) = app.get_webview_window("manager") {
@@ -135,6 +182,12 @@ impl WallController {
     }
 
     pub fn destroy(&mut self) {
+        if let Some(cancel) = self.pointer_cancel.take() {
+            cancel.store(true, Ordering::SeqCst);
+        }
+        if let Some(overlay) = self.overlay.take() {
+            let _ = overlay.close();
+        }
         for webview in self.webviews.iter().flatten() {
             let _ = webview.close();
         }
@@ -142,6 +195,97 @@ impl WallController {
         if let Some(window) = self.window.take() {
             let _ = window.close();
         }
+    }
+
+    fn ensure_overlay(
+        &mut self,
+        window: &Window,
+        monitor_size: PhysicalSize<u32>,
+    ) -> Result<(), String> {
+        let width = 180_u32.min(monitor_size.width);
+        let height = 58_u32.min(monitor_size.height);
+        let x = monitor_size.width.saturating_sub(width + 20) as i32;
+        let y = 20_i32.min(monitor_size.height.saturating_sub(height) as i32);
+        let bounds = tauri::Rect {
+            position: PhysicalPosition::new(x, y).into(),
+            size: PhysicalSize::new(width, height).into(),
+        };
+
+        if let Some(overlay) = &self.overlay {
+            overlay
+                .set_bounds(bounds)
+                .map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+
+        let builder = WebviewBuilder::new("wall-overlay", WebviewUrl::App("overlay.html".into()))
+            .background_color(tauri::webview::Color(0, 0, 0, 255))
+            .on_navigation(|url| {
+                matches!(url.scheme(), "tauri" | "http" | "https")
+                    && (url.scheme() == "tauri"
+                        || url.host_str() == Some("tauri.localhost")
+                        || cfg!(debug_assertions))
+            })
+            .on_new_window(|_, _| NewWindowResponse::Deny)
+            .on_download(|_, _| false);
+        let overlay = window
+            .add_child(
+                builder,
+                PhysicalPosition::new(x, y),
+                PhysicalSize::new(width, height),
+            )
+            .map_err(|error| error.to_string())?;
+        overlay.hide().map_err(|error| error.to_string())?;
+        self.overlay = Some(overlay);
+        Ok(())
+    }
+
+    fn start_pointer_monitor(&mut self, app: &tauri::AppHandle, window: &Window) {
+        if let Some(cancel) = self.pointer_cancel.take() {
+            cancel.store(true, Ordering::SeqCst);
+        }
+        let Some(overlay) = self.overlay.clone() else {
+            return;
+        };
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.pointer_cancel = Some(cancel.clone());
+        let app = app.clone();
+        let window = window.clone();
+        let force_visible = !self.shortcut_registered;
+        let _ = window.set_cursor_visible(true);
+        let _ = overlay.show();
+
+        let _ = std::thread::Builder::new()
+            .name("wall-pointer-monitor".into())
+            .spawn(move || {
+                let started = Instant::now();
+                let mut visibility = OverlayState::default();
+                visibility.record_activity(Duration::ZERO);
+                let mut last_position = app.cursor_position().ok();
+                let mut shown = true;
+
+                while !cancel.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(100));
+                    let now = started.elapsed();
+                    let position = app.cursor_position().ok();
+                    if position != last_position {
+                        last_position = position;
+                        visibility.record_activity(now);
+                    }
+                    let should_show = force_visible || visibility.visible_at(now);
+                    if should_show != shown {
+                        shown = should_show;
+                        if should_show {
+                            let _ = overlay.show();
+                        } else {
+                            let _ = overlay.hide();
+                        }
+                        let _ = window.set_cursor_visible(should_show);
+                    }
+                }
+                let _ = window.set_cursor_visible(true);
+                let _ = overlay.hide();
+            });
     }
 
     fn apply_slot(
@@ -266,6 +410,23 @@ fn slot_runtime_url(slot: &crate::model::SlotConfig) -> Url {
     }
 }
 
+fn escape_shortcut() -> Shortcut {
+    Shortcut::new(None, Code::Escape)
+}
+
+pub fn restore_manager(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<crate::app_state::AppState>() {
+        if let Ok(mut wall) = state.wall.lock() {
+            let _ = wall.stop(app);
+        }
+        state.wall_running.store(false, Ordering::SeqCst);
+    }
+    if let Some(manager) = app.get_webview_window("manager") {
+        let _ = manager.show();
+        let _ = manager.set_focus();
+    }
+}
+
 fn update_status(
     app: &tauri::AppHandle,
     index: usize,
@@ -331,5 +492,15 @@ mod tests {
 
         assert_eq!(model.statuses[0].state, SlotState::Error);
         assert_eq!(model.statuses[1].state, SlotState::Ready);
+    }
+
+    #[test]
+    fn pointer_activity_shows_overlay_for_three_seconds() {
+        let mut overlay = OverlayState::default();
+        overlay.record_activity(std::time::Duration::from_secs(10));
+
+        assert!(overlay.visible_at(std::time::Duration::from_secs(12)));
+        assert!(!overlay
+            .visible_at(std::time::Duration::from_secs(13) + std::time::Duration::from_millis(1)));
     }
 }
