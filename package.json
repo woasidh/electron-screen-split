@@ -1,67 +1,32 @@
 {
   "name": "screen-wall-control",
-  "version": "1.0.0",
-  "description": "2x2 video wall web page controller",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Tauri-based 2x2 web wall controller",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "start": "electron .",
-    "test": "node --test test/*.test.js",
-    "smoke": "electron test/electron-ui-smoke.js",
-    "smoke:wall": "electron test/electron-wall-smoke.js",
-    "check": "node --check index.js && node --check src/main/index.js && node --check src/main/wall-controller.js && node --check src/preload.js && node --check src/overlay-preload.js && node --check src/renderer/app.js && node --check src/renderer/overlay.js",
-    "pack": "electron-builder --dir",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "check": "tsc --noEmit && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "keywords": [
-    "electron",
+    "tauri",
     "video-wall"
   ],
-  "author": "",
   "license": "ISC",
-  "build": {
-    "appId": "com.screenwall.control",
-    "productName": "Screen Wall Control",
-    "asar": true,
-    "files": [
-      "index.js",
-      "src/**/*",
-      "package.json"
-    ],
-    "directories": {
-      "output": "release"
-    },
-    "mac": {
-      "category": "public.app-category.utilities",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        }
-      ]
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
+  "dependencies": {
+    "@tauri-apps/api": "2.11.1"
   },
   "devDependencies": {
-    "electron": "^43.1.1",
-    "electron-builder": "^26.15.3"
+    "@tauri-apps/cli": "2.11.4",
+    "@types/node": "26.1.1",
+    "jsdom": "29.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
   }
 }

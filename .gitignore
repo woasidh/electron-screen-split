@@ -1,5 +1,8 @@
 node_modules/
+dist/
 release/
+src-tauri/target/
+src-tauri/gen/schemas/
 .worktrees/
 .idea/
 .DS_Store
