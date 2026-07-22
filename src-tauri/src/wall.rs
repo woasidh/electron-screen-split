@@ -2,6 +2,7 @@ use crate::app_state::{initial_statuses, SlotState, SlotStatus};
 use crate::audio::MUTE_SCRIPT;
 use crate::layout::{calculate_output_zoom, calculate_quadrants, Rect};
 use crate::model::AppConfig;
+use crate::platform::{apply_platform_audio, apply_platform_bounds, RecoveryState};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -39,6 +40,7 @@ pub struct WallController {
     overlay: Option<Webview>,
     pointer_cancel: Option<Arc<AtomicBool>>,
     shortcut_registered: bool,
+    recovery: RecoveryState,
     model: WallModel,
 }
 
@@ -50,6 +52,7 @@ impl Default for WallController {
             overlay: None,
             pointer_cancel: None,
             shortcut_registered: false,
+            recovery: RecoveryState::default(),
             model: WallModel::new(AppConfig::default()),
         }
     }
@@ -57,6 +60,16 @@ impl Default for WallController {
 
 impl WallController {
     pub fn run(
+        &mut self,
+        app: &tauri::AppHandle,
+        state: &crate::app_state::AppState,
+        config: AppConfig,
+    ) -> Result<(), String> {
+        self.recovery.reset();
+        self.run_once(app, state, config)
+    }
+
+    fn run_once(
         &mut self,
         app: &tauri::AppHandle,
         state: &crate::app_state::AppState,
@@ -120,8 +133,15 @@ impl WallController {
             .set_size(monitor_size)
             .map_err(|error| error.to_string())?;
 
+        let mut placement_failed = false;
         for (index, rect) in quadrants.iter().copied().enumerate() {
-            self.apply_slot(app, &window, &config, index, rect, monitor.scale_factor());
+            if !self.apply_slot(app, &window, &config, index, rect, monitor.scale_factor()) {
+                placement_failed = true;
+            }
+        }
+        if placement_failed && self.recovery.claim_retry() {
+            self.destroy();
+            return self.run_once(app, state, config);
         }
         self.ensure_overlay(&window, monitor_size)?;
 
@@ -195,6 +215,15 @@ impl WallController {
         if let Some(window) = self.window.take() {
             let _ = window.close();
         }
+    }
+
+    fn forget_destroyed_window(&mut self) {
+        if let Some(cancel) = self.pointer_cancel.take() {
+            cancel.store(true, Ordering::SeqCst);
+        }
+        self.window = None;
+        self.overlay = None;
+        self.webviews = (0..4).map(|_| None).collect();
     }
 
     fn ensure_overlay(
@@ -296,7 +325,7 @@ impl WallController {
         index: usize,
         rect: Rect,
         scale_factor: f64,
-    ) {
+    ) -> bool {
         let slot = &config.slots[index];
         self.model.mark_loading(index);
         update_status(
@@ -310,28 +339,38 @@ impl WallController {
             "",
         );
         let url = slot_runtime_url(slot);
-        let bounds = tauri::Rect {
-            position: PhysicalPosition::new(rect.x, rect.y).into(),
-            size: PhysicalSize::new(rect.width, rect.height).into(),
-        };
-
-        let result = if let Some(webview) = self.webviews[index].as_ref() {
-            webview
-                .set_bounds(bounds)
-                .and_then(|_| webview.navigate(url.clone()))
-                .and_then(|_| webview.set_zoom(calculate_output_zoom(slot.zoom, scale_factor)))
+        let result: Result<(), String> = if let Some(webview) = self.webviews[index].as_ref() {
+            apply_platform_bounds(webview, rect)
+                .and_then(|_| {
+                    webview
+                        .navigate(url.clone())
+                        .map_err(|error| error.to_string())
+                })
+                .and_then(|_| {
+                    webview
+                        .set_zoom(calculate_output_zoom(slot.zoom, scale_factor))
+                        .map_err(|error| error.to_string())
+                })
+                .and_then(|_| apply_platform_audio(webview))
         } else {
             self.create_slot(app, window, index, rect, url)
+                .map_err(|error| error.to_string())
                 .and_then(|webview| {
-                    webview.set_zoom(calculate_output_zoom(slot.zoom, scale_factor))?;
+                    webview
+                        .set_zoom(calculate_output_zoom(slot.zoom, scale_factor))
+                        .map_err(|error| error.to_string())?;
+                    apply_platform_audio(&webview)?;
                     self.webviews[index] = Some(webview);
                     Ok(())
                 })
         };
 
         if let Err(error) = result {
-            self.model.mark_error(index, error.to_string());
-            update_status(app, index, SlotState::Error, error.to_string());
+            self.model.mark_error(index, error.clone());
+            update_status(app, index, SlotState::Error, error);
+            false
+        } else {
+            true
         }
     }
 
@@ -425,6 +464,48 @@ pub fn restore_manager(app: &tauri::AppHandle) {
         let _ = manager.show();
         let _ = manager.set_focus();
     }
+}
+
+pub fn schedule_relayout(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<crate::app_state::AppState>() else {
+        return;
+    };
+    if !state.wall_running.load(Ordering::SeqCst)
+        || state.relayout_pending.swap(true, Ordering::SeqCst)
+    {
+        return;
+    }
+
+    let app = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("wall-relayout".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_millis(75));
+            let state = app.state::<crate::app_state::AppState>();
+            if state.wall_running.load(Ordering::SeqCst) {
+                let config = state.config.lock().ok().map(|config| config.clone());
+                if let Some(config) = config {
+                    if let Ok(mut wall) = state.wall.lock() {
+                        if let Err(error) = wall.run(&app, &state, config) {
+                            for index in 0..4 {
+                                update_status(&app, index, SlotState::Error, error.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(250));
+            state.relayout_pending.store(false, Ordering::SeqCst);
+        });
+}
+
+pub fn handle_wall_destroyed(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<crate::app_state::AppState>() {
+        if let Ok(mut wall) = state.wall.try_lock() {
+            wall.forget_destroyed_window();
+        }
+    }
+    schedule_relayout(app);
 }
 
 fn update_status(

@@ -49,6 +49,7 @@ pub struct AppState {
     pub output: Mutex<OutputInfo>,
     pub warning: Mutex<Option<String>>,
     pub wall_running: AtomicBool,
+    pub relayout_pending: AtomicBool,
     pub wall: Mutex<WallController>,
 }
 
@@ -62,6 +63,7 @@ impl AppState {
             output: Mutex::new(output),
             warning: Mutex::new(loaded.warning),
             wall_running: AtomicBool::new(false),
+            relayout_pending: AtomicBool::new(false),
             wall: Mutex::new(WallController::default()),
         }
     }

@@ -2872,6 +2872,7 @@ name = "screen-wall-control"
 version = "2.0.0"
 dependencies = [
  "atomic-write-file",
+ "gtk",
  "serde",
  "serde_json",
  "tauri",

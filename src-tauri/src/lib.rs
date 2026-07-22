@@ -4,6 +4,7 @@ pub mod commands;
 pub mod config_store;
 pub mod layout;
 pub mod model;
+pub mod platform;
 pub mod wall;
 
 use app_state::{AppState, OutputInfo};
@@ -34,7 +35,7 @@ fn create_app_state(app: &tauri::App) -> Result<AppState, Box<dyn std::error::Er
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let app = app.clone();
             let _ = std::thread::Builder::new()
@@ -67,6 +68,17 @@ pub fn run() {
             commands::run_wall,
             commands::stop_wall
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("Tauri application failed");
+    app.run(|app, event| match event {
+        tauri::RunEvent::Resumed => wall::schedule_relayout(app),
+        tauri::RunEvent::WindowEvent { label, event, .. } if label == "wall" => match event {
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
+                wall::schedule_relayout(app);
+            }
+            tauri::WindowEvent::Destroyed => wall::handle_wall_destroyed(app),
+            _ => {}
+        },
+        _ => {}
+    });
 }
