@@ -77,8 +77,8 @@
 
 - WebKitGTK 4.1과 GTK 3 기반으로 구현한다.
 - Wayland와 X11에서 동일한 GTK 컨테이너 경로를 사용한다.
-- child webview는 GTK `Fixed` 컨테이너에 배치한다.
-- Tauri/Wry의 `set_bounds`가 위치 이동을 반영하지 않는 버전에서는 GTK `Fixed::move_`와 크기 요청을 함께 호출한다.
+- Tauri 기본 `GtkBox`에 생성된 child webview를 전용 GTK `Fixed` 컨테이너로 재부모화한다.
+- Linux 배치는 GTK `Fixed::move_`와 크기 요청으로 적용하고, 다른 OS는 Tauri/Wry `set_bounds`를 사용한다.
 - 화면 크기 변경 시 네 웹뷰를 재배치하고, 재배치 실패 시 출력 Window와 웹뷰를 재생성한다.
 - NVIDIA 환경의 빈 화면을 별도 테스트하며 필요한 경우 `WEBKIT_DISABLE_DMABUF_RENDERER=1` 실행 옵션을 패키지 런처에 적용한다.
 

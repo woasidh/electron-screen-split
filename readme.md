@@ -91,7 +91,7 @@ npm run tauri:build:linux
 
 ## Ubuntu 참고
 
-- Wry bounds 적용 후 GTK `Fixed::move_`와 크기 요청을 추가 적용함
+- Tauri 기본 `GtkBox`의 child WebView를 전용 GTK `Fixed`로 재부모화한 뒤 위치·크기 적용함
 - 출력 재배치 실패 시 전체 구성을 한 번만 재생성함
 - NVIDIA에서 빈 화면 발생 시 아래 fallback으로 실행 후 확인함
 

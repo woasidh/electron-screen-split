@@ -251,15 +251,10 @@ impl WallController {
         let height = 58_u32.min(monitor_size.height);
         let x = monitor_size.width.saturating_sub(width + 20) as i32;
         let y = 20_i32.min(monitor_size.height.saturating_sub(height) as i32);
-        let bounds = tauri::Rect {
-            position: PhysicalPosition::new(x, y).into(),
-            size: PhysicalSize::new(width, height).into(),
-        };
+        let rect = Rect::new(x, y, width, height);
 
         if let Some(overlay) = &self.overlay {
-            overlay
-                .set_bounds(bounds)
-                .map_err(|error| error.to_string())?;
+            apply_platform_bounds(overlay, rect)?;
             return Ok(());
         }
 
@@ -280,6 +275,7 @@ impl WallController {
                 PhysicalSize::new(width, height),
             )
             .map_err(|error| error.to_string())?;
+        apply_platform_bounds(&overlay, rect)?;
         overlay.hide().map_err(|error| error.to_string())?;
         self.overlay = Some(overlay);
         Ok(())
@@ -372,6 +368,7 @@ impl WallController {
             self.create_slot(app, window, index, rect, url)
                 .map_err(|error| error.to_string())
                 .and_then(|webview| {
+                    apply_platform_bounds(&webview, rect)?;
                     webview
                         .set_zoom(calculate_output_zoom(slot.zoom, scale_factor))
                         .map_err(|error| error.to_string())?;
