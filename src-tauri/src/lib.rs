@@ -1,3 +1,4 @@
+pub mod config_store;
 pub mod layout;
 pub mod model;
 
