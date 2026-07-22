@@ -11,7 +11,10 @@
     "check": "tsc --noEmit && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "tauri:build:mac": "tauri build --target universal-apple-darwin --bundles dmg",
+    "tauri:build:win": "tauri build --target x86_64-pc-windows-msvc --bundles nsis",
+    "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu --bundles deb"
   },
   "keywords": [
     "tauri",

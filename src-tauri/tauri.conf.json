@@ -27,6 +27,17 @@
     ]
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "category": "Utility",
+    "shortDescription": "Four-way web wall controller",
+    "longDescription": "Displays four isolated web pages in a borderless 2x2 wall on the primary monitor.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": false
   }
 }
