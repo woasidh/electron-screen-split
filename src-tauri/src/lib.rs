@@ -72,6 +72,14 @@ pub fn run() {
         .expect("Tauri application failed");
     app.run(|app, event| match event {
         tauri::RunEvent::Resumed => wall::schedule_relayout(app),
+        tauri::RunEvent::ExitRequested { .. } => wall::shutdown(app),
+        tauri::RunEvent::WindowEvent { label, event, .. }
+            if should_exit_on_close(&label)
+                && matches!(event, tauri::WindowEvent::CloseRequested { .. }) =>
+        {
+            wall::shutdown(app);
+            app.exit(0);
+        }
         tauri::RunEvent::WindowEvent { label, event, .. } if label == "wall" => match event {
             tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
                 wall::schedule_relayout(app);
@@ -81,4 +89,19 @@ pub fn run() {
         },
         _ => {}
     });
+}
+
+fn should_exit_on_close(label: &str) -> bool {
+    label == "manager"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn closing_manager_exits_the_application() {
+        assert!(should_exit_on_close("manager"));
+        assert!(!should_exit_on_close("wall"));
+    }
 }

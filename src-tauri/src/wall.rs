@@ -180,6 +180,7 @@ impl WallController {
     }
 
     pub fn stop(&mut self, app: &tauri::AppHandle) -> Result<(), String> {
+        let mut fullscreen_error = None;
         if let Some(cancel) = self.pointer_cancel.take() {
             cancel.store(true, Ordering::SeqCst);
         }
@@ -192,13 +193,20 @@ impl WallController {
         }
         if let Some(window) = &self.window {
             let _ = window.set_cursor_visible(true);
+            #[cfg(target_os = "macos")]
+            let fullscreen_result = window.set_simple_fullscreen(false);
+            #[cfg(not(target_os = "macos"))]
+            let fullscreen_result = window.set_fullscreen(false);
             window.hide().map_err(|error| error.to_string())?;
+            if let Err(error) = fullscreen_result {
+                fullscreen_error = Some(error.to_string());
+            }
         }
         if let Some(manager) = app.get_webview_window("manager") {
             manager.show().map_err(|error| error.to_string())?;
             manager.set_focus().map_err(|error| error.to_string())?;
         }
-        Ok(())
+        fullscreen_error.map_or(Ok(()), Err)
     }
 
     pub fn destroy(&mut self) {
@@ -215,6 +223,14 @@ impl WallController {
         if let Some(window) = self.window.take() {
             let _ = window.close();
         }
+    }
+
+    pub fn shutdown(&mut self, app: &tauri::AppHandle) {
+        if self.shortcut_registered {
+            let _ = app.global_shortcut().unregister(escape_shortcut());
+            self.shortcut_registered = false;
+        }
+        self.destroy();
     }
 
     fn forget_destroyed_window(&mut self) {
@@ -506,6 +522,15 @@ pub fn handle_wall_destroyed(app: &tauri::AppHandle) {
         }
     }
     schedule_relayout(app);
+}
+
+pub fn shutdown(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<crate::app_state::AppState>() {
+        state.wall_running.store(false, Ordering::SeqCst);
+        if let Ok(mut wall) = state.wall.lock() {
+            wall.shutdown(app);
+        }
+    }
 }
 
 fn update_status(
