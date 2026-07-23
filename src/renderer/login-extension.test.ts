@@ -35,8 +35,13 @@ describe("login extension click script", () => {
       "[Screen Wall] 로그인 연장 버튼 클릭 완료",
       { text: "23:35:32" },
     );
-    expect(resultNotice()?.textContent).toContain("로그인 연장 버튼 클릭 완료");
-    expect(resultNotice()?.style.pointerEvents).toBe("none");
+    const successNotice = resultNotice();
+    expect(successNotice?.textContent).toContain("로그인 연장 버튼 클릭 완료");
+    expect(successNotice?.style.position).toBe("fixed");
+    expect(successNotice?.style.top).toBe("16px");
+    expect(successNotice?.style.right).toBe("16px");
+    expect(successNotice?.style.background).toBe("rgba(21, 128, 61, 0.96)");
+    expect(successNotice?.style.pointerEvents).toBe("none");
 
     vi.advanceTimersByTime(5_000);
 
@@ -59,7 +64,12 @@ describe("login extension click script", () => {
       "[Screen Wall] 로그인 연장 버튼 클릭 실패",
       { text: "23:35:32", error },
     );
-    expect(resultNotice()?.textContent).toContain("로그인 연장 버튼 클릭 실패");
+    const failureNotice = resultNotice();
+    expect(failureNotice?.textContent).toContain("로그인 연장 버튼 클릭 실패");
+    expect(failureNotice?.style.position).toBe("fixed");
+    expect(failureNotice?.style.top).toBe("16px");
+    expect(failureNotice?.style.right).toBe("16px");
+    expect(failureNotice?.style.background).toBe("rgba(185, 28, 28, 0.96)");
   });
 
   test("does not click when multiple time buttons match", () => {
