@@ -83,7 +83,7 @@ export function renderSlotCards(
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", String(index));
-        installTransparentDragImage(event.dataTransfer);
+        installDragImage(event.dataTransfer, index, slot.url);
       }
       actions.onDragStateChange?.(true);
     });
@@ -115,32 +115,46 @@ function readDraggedIndex(container: HTMLElement): number | null {
 
 function finishDrag(container: HTMLElement, actions: SlotCardActions): void {
   delete container.dataset.draggedIndex;
-  removeTransparentDragImage();
+  removeDragImage();
   container.querySelectorAll(".screen-tile").forEach((item) => {
     item.classList.remove("is-dragging", "is-drop-target");
   });
   actions.onDragStateChange?.(false);
 }
 
-function installTransparentDragImage(dataTransfer: DataTransfer): void {
-  removeTransparentDragImage();
+function installDragImage(dataTransfer: DataTransfer, index: number, url: string): void {
+  removeDragImage();
   const dragImage = document.createElement("canvas");
-  dragImage.width = 1;
-  dragImage.height = 1;
+  dragImage.width = 180;
+  dragImage.height = 72;
   dragImage.setAttribute("data-slot-drag-image", "");
   dragImage.setAttribute("aria-hidden", "true");
   Object.assign(dragImage.style, {
     position: "fixed",
-    left: "0",
-    top: "0",
-    width: "1px",
-    height: "1px",
+    left: "-9999px",
+    top: "-9999px",
+    width: "180px",
+    height: "72px",
     pointerEvents: "none",
   });
+  const context = dragImage.getContext("2d");
+  if (context) {
+    context.fillStyle = "#20242c";
+    context.fillRect(0, 0, 180, 72);
+    context.strokeStyle = "#6ea8fe";
+    context.lineWidth = 2;
+    context.strokeRect(1, 1, 178, 70);
+    context.fillStyle = "#f5f7fa";
+    context.font = "600 14px sans-serif";
+    context.fillText(`화면 ${index + 1} · ${POSITIONS[index]}`, 12, 27, 156);
+    context.fillStyle = "#9ba3af";
+    context.font = "12px sans-serif";
+    context.fillText(url || "URL 미설정", 12, 51, 156);
+  }
   document.body.append(dragImage);
-  dataTransfer.setDragImage(dragImage, 0, 0);
+  dataTransfer.setDragImage(dragImage, 90, 36);
 }
 
-function removeTransparentDragImage(): void {
+function removeDragImage(): void {
   document.querySelector(DRAG_IMAGE_SELECTOR)?.remove();
 }

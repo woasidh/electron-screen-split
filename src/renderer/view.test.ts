@@ -1,9 +1,11 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import managerMarkup from "./index.html?raw";
 import { renderSlotCards } from "./view";
 import type { AppConfig, SlotStatus } from "./types";
 
 describe("manager view", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   test("renders four status cards and contains no preview UI", () => {
     const parsed = new DOMParser().parseFromString(managerMarkup, "text/html");
     document.body.innerHTML = parsed.body.innerHTML;
@@ -38,13 +40,23 @@ describe("manager view", () => {
     expect(onDragStateChange.mock.calls).toEqual([[true], [false]]);
   });
 
-  test("uses a one-pixel transparent native drag image", () => {
+  test("uses a compact visible native drag image", () => {
     document.body.replaceChildren();
     const container = document.createElement("div");
     document.body.append(container);
     renderSlotCards(container, defaultConfig(), defaultStatuses(), 0);
 
     const setDragImage = vi.fn();
+    const fillText = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "",
+      strokeStyle: "",
+      lineWidth: 0,
+      font: "",
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      fillText,
+    } as unknown as CanvasRenderingContext2D);
     const dataTransfer = {
       effectAllowed: "none",
       setData: vi.fn(),
@@ -62,9 +74,11 @@ describe("manager view", () => {
       number,
     ];
     expect(dragImage).toBeInstanceOf(HTMLCanvasElement);
-    expect(dragImage.width).toBe(1);
-    expect(dragImage.height).toBe(1);
-    expect([offsetX, offsetY]).toEqual([0, 0]);
+    expect(dragImage.width).toBe(180);
+    expect(dragImage.height).toBe(72);
+    expect([offsetX, offsetY]).toEqual([90, 36]);
+    expect(fillText).toHaveBeenCalledWith("화면 1 · 좌상", 12, 27, 156);
+    expect(fillText).toHaveBeenCalledWith("https://1.example", 12, 51, 156);
     expect(document.body.contains(dragImage)).toBe(true);
 
     slotTiles(container)[0].dispatchEvent(new Event("dragend", { bubbles: true }));
