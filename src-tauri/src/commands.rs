@@ -16,7 +16,7 @@ pub fn authorize(label: &str, command: CommandKind) -> bool {
         (
             "manager",
             CommandKind::Read | CommandKind::Mutate | CommandKind::Run | CommandKind::Stop
-        ) | ("wall-overlay", CommandKind::Stop)
+        )
     )
 }
 
@@ -126,12 +126,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_manager_and_overlay_labels_are_authorized() {
+    fn only_manager_label_is_authorized() {
         assert!(authorize("manager", CommandKind::Read));
         assert!(authorize("manager", CommandKind::Mutate));
         assert!(authorize("manager", CommandKind::Run));
         assert!(authorize("manager", CommandKind::Stop));
-        assert!(authorize("wall-overlay", CommandKind::Stop));
+        assert!(!authorize("wall-overlay", CommandKind::Stop));
         assert!(!authorize("wall-slot-1", CommandKind::Mutate));
         assert!(!authorize("wall-slot-1", CommandKind::Stop));
     }

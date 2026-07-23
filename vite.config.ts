@@ -15,7 +15,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         manager: resolve("src/renderer/index.html"),
-        overlay: resolve("src/renderer/overlay.html"),
         blank: resolve("src/renderer/blank.html"),
       },
     },
