@@ -16,6 +16,7 @@ const elements = {
   shortcutHint: required<HTMLElement>("#shortcut-hint"),
   slotEnabled: required<HTMLInputElement>("#slot-enabled"),
   slotGrid: required<HTMLElement>("#slot-grid"),
+  slotLoginExtension: required<HTMLInputElement>("#slot-login-extension"),
   slotName: required<HTMLElement>("#slot-name"),
   slotStatus: required<HTMLElement>("#slot-status"),
   slotStatusLabel: required<HTMLElement>("#slot-status-label"),
@@ -94,6 +95,7 @@ function renderEditor(): void {
   const status = currentStatus(selectedIndex);
   elements.slotName.textContent = `화면 ${selectedIndex + 1} · ${POSITIONS[selectedIndex]}`;
   elements.slotEnabled.checked = slot.enabled;
+  elements.slotLoginExtension.checked = slot.loginExtension;
   elements.slotUrl.value = slot.url;
   elements.slotZoom.value = String(Math.round(slot.zoom * 100));
   elements.zoomValue.value = `${Math.round(slot.zoom * 100)}%`;
@@ -220,6 +222,12 @@ elements.slotEnabled.addEventListener("change", () => {
     state: elements.slotEnabled.checked ? "loading" : "disabled",
     message: "",
   };
+  scheduleSave(0);
+  renderAll();
+});
+elements.slotLoginExtension.addEventListener("change", () => {
+  if (!config) return;
+  config.slots[selectedIndex].loginExtension = elements.slotLoginExtension.checked;
   scheduleSave(0);
   renderAll();
 });

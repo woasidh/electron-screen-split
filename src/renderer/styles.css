@@ -109,6 +109,13 @@ h1, h2 { font-size: 15px; font-weight: 680; }
 .switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 140ms ease; }
 .switch-control input:checked + .switch-track { background: var(--accent); }
 .switch-control input:checked + .switch-track::after { transform: translateX(16px); }
+.option-row {
+  margin-top: 18px; padding: 12px; justify-content: space-between;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--panel-soft);
+}
+.option-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.option-copy strong { font-size: 13px; font-weight: 620; }
+.option-copy small { color: var(--muted); font-size: 11px; }
 .field-label { display: block; margin: 28px 0 8px; font-size: 13px; font-weight: 620; }
 .text-input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; outline: none; background: var(--panel-soft); color: var(--text); font-size: 13px; }
 .text-input.is-invalid { border-color: var(--danger); }

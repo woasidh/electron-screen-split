@@ -20,6 +20,18 @@ describe("manager view", () => {
     expect(document.querySelectorAll(".preview-image")).toHaveLength(0);
   });
 
+  test("shows login extension control and enabled card metadata", () => {
+    const parsed = new DOMParser().parseFromString(managerMarkup, "text/html");
+    expect(parsed.querySelector("#slot-login-extension")).not.toBeNull();
+    const config = defaultConfig();
+    config.slots[0].loginExtension = true;
+    const container = document.createElement("div");
+
+    renderSlotCards(container, config, defaultStatuses(), 0);
+
+    expect(container.querySelector(".tile-meta")?.textContent).toContain("로그인 연장");
+  });
+
   test("keeps the drag source when cards rerender before drop", () => {
     const container = document.createElement("div");
     const config = defaultConfig();

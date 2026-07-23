@@ -73,7 +73,11 @@ export function renderSlotCards(
 
     const meta = document.createElement("span");
     meta.className = "tile-meta";
-    meta.textContent = `${Math.round(slot.zoom * 100)}% · ${slot.enabled ? "사용" : "사용 안 함"}`;
+    meta.textContent = [
+      `${Math.round(slot.zoom * 100)}%`,
+      slot.enabled ? "사용" : "사용 안 함",
+      ...(slot.loginExtension ? ["로그인 연장"] : []),
+    ].join(" · ");
     tile.append(heading, state, url, meta);
 
     tile.addEventListener("click", () => actions.onSelect?.(index));

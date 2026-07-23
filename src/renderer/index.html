@@ -47,7 +47,7 @@
           </div>
           <div class="drag-guide" role="note">
             <span class="drag-icon" aria-hidden="true">↕</span>
-            <span>교환 시 URL·확대율·사용 상태가 함께 이동함</span>
+            <span>교환 시 URL·확대율·사용 상태·로그인 연장이 함께 이동함</span>
           </div>
           <div class="slot-grid" id="slot-grid" aria-label="2×2 화면 배치"></div>
         </section>
@@ -76,6 +76,15 @@
             placeholder="https://example.com"
           >
           <p class="field-message" id="url-message">HTTP 또는 HTTPS 주소 입력</p>
+
+          <label class="option-row switch-control">
+            <span class="option-copy">
+              <strong>로그인 연장</strong>
+              <small>RUN 1시간 후부터 매시간 실행</small>
+            </span>
+            <input id="slot-login-extension" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
 
           <div class="zoom-heading">
             <label class="field-label" for="slot-zoom">확대율</label>
