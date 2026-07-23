@@ -1,6 +1,7 @@
 import type { AppConfig, SlotStatus, SlotState } from "./types";
 
 const POSITIONS = ["좌상", "우상", "좌하", "우하"];
+const DRAG_IMAGE_SELECTOR = "canvas[data-slot-drag-image]";
 const STATUS_LABELS: Record<SlotState, string> = {
   idle: "대기 중",
   loading: "로딩 중",
@@ -82,6 +83,7 @@ export function renderSlotCards(
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", String(index));
+        installTransparentDragImage(event.dataTransfer);
       }
       actions.onDragStateChange?.(true);
     });
@@ -113,8 +115,32 @@ function readDraggedIndex(container: HTMLElement): number | null {
 
 function finishDrag(container: HTMLElement, actions: SlotCardActions): void {
   delete container.dataset.draggedIndex;
+  removeTransparentDragImage();
   container.querySelectorAll(".screen-tile").forEach((item) => {
     item.classList.remove("is-dragging", "is-drop-target");
   });
   actions.onDragStateChange?.(false);
+}
+
+function installTransparentDragImage(dataTransfer: DataTransfer): void {
+  removeTransparentDragImage();
+  const dragImage = document.createElement("canvas");
+  dragImage.width = 1;
+  dragImage.height = 1;
+  dragImage.setAttribute("data-slot-drag-image", "");
+  dragImage.setAttribute("aria-hidden", "true");
+  Object.assign(dragImage.style, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    width: "1px",
+    height: "1px",
+    pointerEvents: "none",
+  });
+  document.body.append(dragImage);
+  dataTransfer.setDragImage(dragImage, 0, 0);
+}
+
+function removeTransparentDragImage(): void {
+  document.querySelector(DRAG_IMAGE_SELECTOR)?.remove();
 }

@@ -37,6 +37,40 @@ describe("manager view", () => {
     expect(onSwap).toHaveBeenCalledWith(0, 1);
     expect(onDragStateChange.mock.calls).toEqual([[true], [false]]);
   });
+
+  test("uses a one-pixel transparent native drag image", () => {
+    document.body.replaceChildren();
+    const container = document.createElement("div");
+    document.body.append(container);
+    renderSlotCards(container, defaultConfig(), defaultStatuses(), 0);
+
+    const setDragImage = vi.fn();
+    const dataTransfer = {
+      effectAllowed: "none",
+      setData: vi.fn(),
+      setDragImage,
+    } as unknown as DataTransfer;
+    const dragStart = new Event("dragstart", { bubbles: true });
+    Object.defineProperty(dragStart, "dataTransfer", { value: dataTransfer });
+
+    slotTiles(container)[0].dispatchEvent(dragStart);
+
+    expect(setDragImage).toHaveBeenCalledOnce();
+    const [dragImage, offsetX, offsetY] = setDragImage.mock.calls[0] as [
+      HTMLCanvasElement,
+      number,
+      number,
+    ];
+    expect(dragImage).toBeInstanceOf(HTMLCanvasElement);
+    expect(dragImage.width).toBe(1);
+    expect(dragImage.height).toBe(1);
+    expect([offsetX, offsetY]).toEqual([0, 0]);
+    expect(document.body.contains(dragImage)).toBe(true);
+
+    slotTiles(container)[0].dispatchEvent(new Event("dragend", { bubbles: true }));
+
+    expect(document.body.contains(dragImage)).toBe(false);
+  });
 });
 
 function slotTiles(container: HTMLElement): HTMLElement[] {

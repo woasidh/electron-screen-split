@@ -27,7 +27,7 @@
 - Consumes: `DragEvent.dataTransfer`, `DataTransfer.setDragImage(element, x, y)`
 - Produces: 드래그 동안만 존재하는 `canvas[data-slot-drag-image]`
 
-- [ ] **Step 1: 실패하는 회귀 테스트 작성**
+- [x] **Step 1: 실패하는 회귀 테스트 작성**
 
 ```ts
 const setDragImage = vi.fn();
@@ -47,12 +47,12 @@ expect(dragImage.height).toBe(1);
 expect(setDragImage).toHaveBeenCalledWith(dragImage, 0, 0);
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [x] **Step 2: 테스트 실패 확인**
 
 Run: `npm test -- --run src/renderer/view.test.ts`
 Expected: `setDragImage` 호출 횟수 0으로 FAIL
 
-- [ ] **Step 3: 최소 구현**
+- [x] **Step 3: 최소 구현**
 
 ```ts
 function installTransparentDragImage(dataTransfer: DataTransfer): void {
@@ -75,17 +75,17 @@ function installTransparentDragImage(dataTransfer: DataTransfer): void {
 
 `dragstart`에서 설치하고 `finishDrag()`에서 제거함.
 
-- [ ] **Step 4: 대상 테스트 통과 확인**
+- [x] **Step 4: 대상 테스트 통과 확인**
 
 Run: `npm test -- --run src/renderer/view.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: 전체 검증**
+- [x] **Step 5: 전체 검증**
 
 Run: `npm test -- --run && npm run check && npm run build && cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: 모두 exit code 0
 
-- [ ] **Step 6: 커밋 및 원격 푸시**
+- [x] **Step 6: 커밋 및 원격 푸시**
 
 ```bash
 git add docs/superpowers/plans/2026-07-23-drag-preview-size.md src/renderer/view.ts src/renderer/view.test.ts
