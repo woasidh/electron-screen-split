@@ -26,7 +26,7 @@
 - Consumes: 기존 `renderSlotCards(container, config, statuses, selectedIndex, actions)`
 - Produces: `SlotCardActions.onDragStateChange?(active: boolean): void`
 
-- [ ] **Step 1: 재렌더링 중 드래그 원본 유지 실패 테스트 작성**
+- [x] **Step 1: 재렌더링 중 드래그 원본 유지 실패 테스트 작성**
 
 ```ts
 const onSwap = vi.fn();
@@ -37,12 +37,12 @@ tiles()[1].dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }))
 expect(onSwap).toHaveBeenCalledWith(0, 1);
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `npm test -- --run src/renderer/view.test.ts`
 Expected: `onSwap` 호출 누락으로 FAIL
 
-- [ ] **Step 3: 컨테이너 기반 드래그 상태 구현**
+- [x] **Step 3: 컨테이너 기반 드래그 상태 구현**
 
 ```ts
 container.dataset.draggedIndex = String(index);
@@ -51,7 +51,7 @@ actions.onDragStateChange?.(true);
 
 드롭 또는 드래그 종료 시 데이터 속성을 제거하고 `onDragStateChange(false)`를 호출함.
 
-- [ ] **Step 4: 대상 테스트 통과 확인**
+- [x] **Step 4: 대상 테스트 통과 확인**
 
 Run: `npm test -- --run src/renderer/view.test.ts`
 Expected: PASS
@@ -67,7 +67,7 @@ Expected: PASS
 - Produces: `createRenderGate(render: () => void)`
 - Produces: `{ request(): void; setBlocked(blocked: boolean): void }`
 
-- [ ] **Step 1: 렌더 게이트 실패 테스트 작성**
+- [x] **Step 1: 렌더 게이트 실패 테스트 작성**
 
 ```ts
 const render = vi.fn();
@@ -80,12 +80,12 @@ gate.setBlocked(false);
 expect(render).toHaveBeenCalledTimes(1);
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `npm test -- --run src/renderer/render-gate.test.ts`
 Expected: 모듈 미구현으로 FAIL
 
-- [ ] **Step 3: 최소 렌더 게이트와 앱 연결 구현**
+- [x] **Step 3: 최소 렌더 게이트와 앱 연결 구현**
 
 ```ts
 const slotGridRenderGate = createRenderGate(renderSlotGrid);
@@ -93,12 +93,12 @@ const slotGridRenderGate = createRenderGate(renderSlotGrid);
 
 `renderAll()`은 `request()`를 사용하고 슬롯 카드의 `onDragStateChange`는 `setBlocked()`에 연결함.
 
-- [ ] **Step 4: 전체 정적 검증 실행**
+- [x] **Step 4: 전체 정적 검증 실행**
 
 Run: `npm test -- --run && npm run check && npm run build && cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: 모두 exit code 0
 
-- [ ] **Step 5: 실제 앱 드래그 확인 후 커밋/푸시**
+- [x] **Step 5: 실제 앱 드래그 확인 후 커밋/푸시**
 
 실행 중인 이전 Electron 앱을 종료하고 Tauri 관리 화면에서 서로 다른 URL 카드 위치를 교환한 뒤 원복함.
 

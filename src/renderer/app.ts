@@ -1,4 +1,5 @@
 import { wallApi } from "./api";
+import { createRenderGate } from "./render-gate";
 import { createSaveQueue, swapSlots, validateSlot } from "./state";
 import type { AppConfig, OutputInfo, SlotStatus } from "./types";
 import { renderSlotCards, statusClass, statusLabel } from "./view";
@@ -38,6 +39,7 @@ let savedRevision = 0;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const saveQueue = createSaveQueue(wallApi.saveConfig);
+const slotGridRenderGate = createRenderGate(renderSlotGrid);
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -52,6 +54,14 @@ function currentStatus(index: number): SlotStatus {
 }
 
 function renderAll(): void {
+  if (!config) return;
+  slotGridRenderGate.request();
+  renderEditor();
+  renderOutput();
+  renderSummary();
+}
+
+function renderSlotGrid(): void {
   if (!config) return;
   renderSlotCards(elements.slotGrid, config, statuses, selectedIndex, {
     onSelect(index) {
@@ -72,10 +82,10 @@ function renderAll(): void {
       renderAll();
       showToast(`${POSITIONS[to]} 위치로 화면을 교환함`);
     },
+    onDragStateChange(active) {
+      slotGridRenderGate.setBlocked(active);
+    },
   });
-  renderEditor();
-  renderOutput();
-  renderSummary();
 }
 
 function renderEditor(): void {

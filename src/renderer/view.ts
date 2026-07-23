@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<SlotState, string> = {
 export interface SlotCardActions {
   onSelect?(index: number): void;
   onSwap?(from: number, to: number): void;
+  onDragStateChange?(active: boolean): void;
 }
 
 export function statusLabel(status: SlotStatus): string {
@@ -34,7 +35,6 @@ export function renderSlotCards(
   actions: SlotCardActions = {},
 ): void {
   container.replaceChildren();
-  let draggedIndex: number | null = null;
 
   config.slots.forEach((slot, index) => {
     const status = slot.enabled
@@ -77,29 +77,44 @@ export function renderSlotCards(
 
     tile.addEventListener("click", () => actions.onSelect?.(index));
     tile.addEventListener("dragstart", (event) => {
-      draggedIndex = index;
+      container.dataset.draggedIndex = String(index);
       tile.classList.add("is-dragging");
-      event.dataTransfer?.setData("text/plain", String(index));
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+      }
+      actions.onDragStateChange?.(true);
     });
     tile.addEventListener("dragover", (event) => {
+      const draggedIndex = readDraggedIndex(container);
       if (draggedIndex === null || draggedIndex === index) return;
       event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
       tile.classList.add("is-drop-target");
     });
     tile.addEventListener("dragleave", () => tile.classList.remove("is-drop-target"));
     tile.addEventListener("drop", (event) => {
       event.preventDefault();
-      const from = draggedIndex ?? Number(event.dataTransfer?.getData("text/plain"));
+      const from =
+        readDraggedIndex(container) ?? Number(event.dataTransfer?.getData("text/plain"));
       tile.classList.remove("is-drop-target");
       if (Number.isInteger(from) && from !== index) actions.onSwap?.(from, index);
-      draggedIndex = null;
+      finishDrag(container, actions);
     });
-    tile.addEventListener("dragend", () => {
-      draggedIndex = null;
-      container.querySelectorAll(".screen-tile").forEach((item) => {
-        item.classList.remove("is-dragging", "is-drop-target");
-      });
-    });
+    tile.addEventListener("dragend", () => finishDrag(container, actions));
     container.append(tile);
   });
+}
+
+function readDraggedIndex(container: HTMLElement): number | null {
+  const value = Number(container.dataset.draggedIndex);
+  return Number.isInteger(value) ? value : null;
+}
+
+function finishDrag(container: HTMLElement, actions: SlotCardActions): void {
+  delete container.dataset.draggedIndex;
+  container.querySelectorAll(".screen-tile").forEach((item) => {
+    item.classList.remove("is-dragging", "is-drop-target");
+  });
+  actions.onDragStateChange?.(false);
 }

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import managerMarkup from "./index.html?raw";
 import { renderSlotCards } from "./view";
 import type { AppConfig, SlotStatus } from "./types";
@@ -17,7 +17,31 @@ describe("manager view", () => {
     expect(document.body.textContent).not.toContain("5초 자동 갱신");
     expect(document.querySelectorAll(".preview-image")).toHaveLength(0);
   });
+
+  test("keeps the drag source when cards rerender before drop", () => {
+    const container = document.createElement("div");
+    const config = defaultConfig();
+    const statuses = defaultStatuses();
+    const onSwap = vi.fn();
+    const onDragStateChange = vi.fn();
+    const actions = { onSwap, onDragStateChange };
+
+    renderSlotCards(container, config, statuses, 0, actions);
+    slotTiles(container)[0].dispatchEvent(new Event("dragstart", { bubbles: true }));
+
+    renderSlotCards(container, config, statuses, 0, actions);
+    slotTiles(container)[1].dispatchEvent(
+      new Event("drop", { bubbles: true, cancelable: true }),
+    );
+
+    expect(onSwap).toHaveBeenCalledWith(0, 1);
+    expect(onDragStateChange.mock.calls).toEqual([[true], [false]]);
+  });
 });
+
+function slotTiles(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(".screen-tile"));
+}
 
 function defaultConfig(): AppConfig {
   return {
