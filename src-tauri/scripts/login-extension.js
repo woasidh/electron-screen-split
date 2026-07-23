@@ -50,9 +50,17 @@
   });
 
   if (candidates.length === 1) {
-    candidates[0].click();
-    showResult("로그인 연장 클릭 실행", true);
-    console.info("[Screen Wall] 로그인 연장 클릭 실행");
+    const button = candidates[0];
+    const text = (button.textContent || "").replace(/\s+/g, " ").trim();
+    console.info("[Screen Wall] 로그인 연장 버튼 발견", { text });
+    try {
+      button.click();
+      showResult("로그인 연장 버튼 클릭 완료", true);
+      console.info("[Screen Wall] 로그인 연장 버튼 클릭 완료", { text });
+    } catch (error) {
+      showResult("로그인 연장 버튼 클릭 실패", false);
+      console.error("[Screen Wall] 로그인 연장 버튼 클릭 실패", { text, error });
+    }
   } else {
     const message = candidates.length === 0
       ? "로그인 연장 대상 버튼 없음"

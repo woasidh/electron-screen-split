@@ -8,6 +8,7 @@ describe("login extension click script", () => {
     vi.useFakeTimers();
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -17,20 +18,48 @@ describe("login extension click script", () => {
     vi.restoreAllMocks();
   });
 
-  test("clicks one visible enabled time button and shows the result", () => {
+  test("logs selector match and completed click", () => {
     const button = addButton("23:35:32");
     const click = vi.spyOn(button, "click");
 
     runScript();
 
     expect(click).toHaveBeenCalledOnce();
-    expect(resultNotice()?.textContent).toContain("로그인 연장 클릭 실행");
+    expect(console.info).toHaveBeenNthCalledWith(
+      1,
+      "[Screen Wall] 로그인 연장 버튼 발견",
+      { text: "23:35:32" },
+    );
+    expect(console.info).toHaveBeenNthCalledWith(
+      2,
+      "[Screen Wall] 로그인 연장 버튼 클릭 완료",
+      { text: "23:35:32" },
+    );
+    expect(resultNotice()?.textContent).toContain("로그인 연장 버튼 클릭 완료");
     expect(resultNotice()?.style.pointerEvents).toBe("none");
-    expect(console.info).toHaveBeenCalledWith("[Screen Wall] 로그인 연장 클릭 실행");
 
     vi.advanceTimersByTime(5_000);
 
     expect(resultNotice()).toBeNull();
+  });
+
+  test("logs click exception without throwing from the script", () => {
+    const button = addButton("23:35:32");
+    const error = new Error("click failed");
+    vi.spyOn(button, "click").mockImplementation(() => {
+      throw error;
+    });
+
+    expect(() => runScript()).not.toThrow();
+
+    expect(console.info).toHaveBeenCalledWith("[Screen Wall] 로그인 연장 버튼 발견", {
+      text: "23:35:32",
+    });
+    expect(console.error).toHaveBeenCalledWith(
+      "[Screen Wall] 로그인 연장 버튼 클릭 실패",
+      { text: "23:35:32", error },
+    );
+    expect(resultNotice()?.textContent).toContain("로그인 연장 버튼 클릭 실패");
   });
 
   test("does not click when multiple time buttons match", () => {
