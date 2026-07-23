@@ -1,6 +1,9 @@
 use crate::app_state::{initial_statuses, SlotState, SlotStatus};
 use crate::audio::MUTE_SCRIPT;
 use crate::layout::{calculate_output_zoom, calculate_quadrants, Rect};
+use crate::login_extension::{
+    spawn as spawn_login_extension, LOGIN_EXTENSION_INTERVAL, LOGIN_EXTENSION_SCRIPT,
+};
 use crate::model::AppConfig;
 use crate::platform::{apply_platform_audio, apply_platform_bounds, RecoveryState};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -39,6 +42,7 @@ pub struct WallController {
     webviews: Vec<Option<Webview>>,
     overlay: Option<Webview>,
     pointer_cancel: Option<Arc<AtomicBool>>,
+    login_extension_cancel: Option<Arc<AtomicBool>>,
     shortcut_registered: bool,
     recovery: RecoveryState,
     model: WallModel,
@@ -51,6 +55,7 @@ impl Default for WallController {
             webviews: (0..4).map(|_| None).collect(),
             overlay: None,
             pointer_cancel: None,
+            login_extension_cancel: None,
             shortcut_registered: false,
             recovery: RecoveryState::default(),
             model: WallModel::new(AppConfig::default()),
@@ -167,6 +172,7 @@ impl WallController {
             .map_err(|error| error.to_string())?;
         window.set_focus().map_err(|error| error.to_string())?;
         self.start_pointer_monitor(app, &window);
+        self.start_login_extension(&config);
         if let Some(manager) = app.get_webview_window("manager") {
             manager.hide().map_err(|error| error.to_string())?;
         }
@@ -184,6 +190,7 @@ impl WallController {
         if let Some(cancel) = self.pointer_cancel.take() {
             cancel.store(true, Ordering::SeqCst);
         }
+        self.cancel_login_extension();
         if self.shortcut_registered {
             let _ = app.global_shortcut().unregister(escape_shortcut());
             self.shortcut_registered = false;
@@ -213,6 +220,7 @@ impl WallController {
         if let Some(cancel) = self.pointer_cancel.take() {
             cancel.store(true, Ordering::SeqCst);
         }
+        self.cancel_login_extension();
         if let Some(overlay) = self.overlay.take() {
             let _ = overlay.close();
         }
@@ -237,6 +245,7 @@ impl WallController {
         if let Some(cancel) = self.pointer_cancel.take() {
             cancel.store(true, Ordering::SeqCst);
         }
+        self.cancel_login_extension();
         self.window = None;
         self.overlay = None;
         self.webviews = (0..4).map(|_| None).collect();
@@ -327,6 +336,42 @@ impl WallController {
                 let _ = window.set_cursor_visible(true);
                 let _ = overlay.hide();
             });
+    }
+
+    fn start_login_extension(&mut self, config: &AppConfig) {
+        if self.login_extension_cancel.is_some() {
+            return;
+        }
+
+        let targets = config
+            .slots
+            .iter()
+            .zip(self.webviews.iter())
+            .filter_map(|(slot, webview)| {
+                should_extend_login(slot).then(|| webview.clone()).flatten()
+            })
+            .collect::<Vec<_>>();
+        if targets.is_empty() {
+            return;
+        }
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let worker_cancel = cancel.clone();
+        if spawn_login_extension(worker_cancel, LOGIN_EXTENSION_INTERVAL, move || {
+            for webview in &targets {
+                let _ = webview.eval(LOGIN_EXTENSION_SCRIPT);
+            }
+        })
+        .is_ok()
+        {
+            self.login_extension_cancel = Some(cancel);
+        }
+    }
+
+    fn cancel_login_extension(&mut self) {
+        if let Some(cancel) = self.login_extension_cancel.take() {
+            cancel.store(true, Ordering::SeqCst);
+        }
     }
 
     fn apply_slot(
@@ -460,6 +505,10 @@ fn slot_runtime_url(slot: &crate::model::SlotConfig) -> Url {
     } else {
         Url::parse("about:blank").unwrap()
     }
+}
+
+fn should_extend_login(slot: &crate::model::SlotConfig) -> bool {
+    slot.enabled && slot.login_extension
 }
 
 fn escape_shortcut() -> Shortcut {
@@ -605,5 +654,16 @@ mod tests {
         assert!(overlay.visible_at(std::time::Duration::from_secs(12)));
         assert!(!overlay
             .visible_at(std::time::Duration::from_secs(13) + std::time::Duration::from_millis(1)));
+    }
+
+    #[test]
+    fn login_extension_requires_enabled_opted_in_slot() {
+        let mut slot = AppConfig::default().slots.remove(0);
+
+        assert!(!should_extend_login(&slot));
+        slot.login_extension = true;
+        assert!(should_extend_login(&slot));
+        slot.enabled = false;
+        assert!(!should_extend_login(&slot));
     }
 }
