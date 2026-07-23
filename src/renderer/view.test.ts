@@ -98,6 +98,7 @@ function defaultConfig(): AppConfig {
       enabled: true,
       url: `https://${index + 1}.example`,
       zoom: 1,
+      loginExtension: false,
     })),
   };
 }

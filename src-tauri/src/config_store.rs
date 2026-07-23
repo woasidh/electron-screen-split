@@ -156,4 +156,20 @@ mod tests {
         assert_eq!(result.config, AppConfig::default());
         assert!(result.warning.is_some());
     }
+
+    #[test]
+    fn loads_config_without_login_extension_as_false() {
+        let temp = tempfile::tempdir().unwrap();
+        let target = temp.path().join("config.json");
+        fs::write(
+            &target,
+            r#"{"version":1,"slots":[{"enabled":true,"url":"https://example.com","zoom":1.0}]}"#,
+        )
+        .unwrap();
+
+        let result = ConfigStore::new(target, vec![]).load();
+
+        assert!(result.warning.is_none());
+        assert!(!result.config.slots[0].login_extension);
+    }
 }

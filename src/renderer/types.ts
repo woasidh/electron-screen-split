@@ -2,6 +2,7 @@ export interface SlotConfig {
   enabled: boolean;
   url: string;
   zoom: number;
+  loginExtension: boolean;
 }
 
 export interface AppConfig {

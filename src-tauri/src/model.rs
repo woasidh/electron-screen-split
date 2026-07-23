@@ -16,6 +16,8 @@ pub struct SlotConfig {
     pub enabled: bool,
     pub url: String,
     pub zoom: f64,
+    #[serde(default)]
+    pub login_extension: bool,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -35,6 +37,7 @@ impl Default for AppConfig {
                     enabled: true,
                     url: (*url).to_owned(),
                     zoom: 1.0,
+                    login_extension: false,
                 })
                 .collect(),
         }
@@ -52,6 +55,7 @@ impl AppConfig {
                     enabled: source.enabled,
                     url: source.url.trim().chars().take(2048).collect(),
                     zoom: normalize_zoom(source.zoom),
+                    login_extension: source.login_extension,
                 }
             })
             .collect();
@@ -101,11 +105,13 @@ mod tests {
             enabled: true,
             url: " https://example.com ".into(),
             zoom: 9.0,
+            login_extension: true,
         }]);
 
         assert_eq!(config.slots.len(), 4);
         assert_eq!(config.slots[0].url, "https://example.com");
         assert_eq!(config.slots[0].zoom, 1.5);
+        assert!(config.slots[0].login_extension);
     }
 
     #[test]
