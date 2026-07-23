@@ -4,7 +4,7 @@
 
 **Goal:** 화면별 로그인 연장 옵션을 저장하고, RUN 1시간 후부터 선택된 활성 웹뷰의 단일 시간 버튼을 매시간 클릭함.
 
-**Architecture:** JSON 설정과 관리 UI에 `loginExtension` 값을 추가함. Rust `WallController`가 대상 웹뷰와 취소 플래그를 소유하고, 별도 주기 실행기가 `Webview::eval`로 저장된 DOM 스크립트를 실행함. 버튼 스크립트는 표시·활성 상태인 `HH:mm:ss` 텍스트 버튼이 정확히 하나일 때만 클릭함.
+**Architecture:** JSON 설정과 관리 UI에 `loginExtension` 값을 추가함. Rust `WallController`가 대상 웹뷰와 취소 플래그를 소유하고, 별도 주기 실행기가 `Webview::eval`로 저장된 DOM 스크립트를 실행함. 버튼 스크립트는 `stamp stamp--normal` class를 가지며 표시·활성 상태인 `HH:mm:ss` 텍스트 버튼이 정확히 하나일 때만 클릭함.
 
 **Tech Stack:** TypeScript 7, Vitest/jsdom, Rust 1.77.2, Tauri 2.11, Serde
 
@@ -88,7 +88,7 @@ git commit -m "feat: persist login extension option"
 
 **Interfaces:**
 - Produces: `login_extension::LOGIN_EXTENSION_SCRIPT: &str`
-- Script contract: 표시·활성 상태인 시간 텍스트 버튼 후보가 정확히 하나이면 `click()` 호출
+- Script contract: `stamp`와 `stamp--normal` class를 가지며 표시·활성 상태인 시간 텍스트 버튼 후보가 정확히 하나이면 `click()` 호출
 
 - [ ] **Step 1: DOM 실패 테스트 작성**
 
@@ -97,6 +97,7 @@ import script from "../../src-tauri/scripts/login-extension.js?raw";
 
 test("clicks only one visible enabled time button", () => {
   const button = document.createElement("button");
+  button.classList.add("stamp", "stamp--normal");
   button.textContent = "23:35:32";
   vi.spyOn(button, "getBoundingClientRect").mockReturnValue({ width: 80, height: 30 } as DOMRect);
   const click = vi.spyOn(button, "click");
@@ -122,7 +123,11 @@ Expected: FAIL, 스크립트 파일이 존재하지 않음.
     const text = (button.textContent || "").replace(/\s+/g, " ").trim();
     const rect = button.getBoundingClientRect();
     const style = getComputedStyle(button);
-    return /^\d{2}:\d{2}:\d{2}$/.test(text)
+    const isLoginStamp = button.classList.contains("stamp")
+      && (button.classList.contains("stamp--normal")
+        || button.classList.contains("stamp—normal"));
+    return isLoginStamp
+      && /^\d{2}:\d{2}:\d{2}$/.test(text)
       && !button.disabled
       && button.getAttribute("aria-disabled") !== "true"
       && rect.width > 0
