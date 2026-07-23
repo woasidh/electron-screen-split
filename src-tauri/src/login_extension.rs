@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 pub const LOGIN_EXTENSION_SCRIPT: &str = include_str!("../scripts/login-extension.js");
-pub const LOGIN_EXTENSION_INTERVAL: Duration = Duration::from_secs(60 * 60);
+pub const LOGIN_EXTENSION_INTERVAL: Duration = Duration::from_secs(60);
 const CANCEL_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 pub fn spawn(
@@ -52,6 +52,11 @@ mod tests {
         assert!(LOGIN_EXTENSION_SCRIPT.contains("candidates.length === 1"));
         assert!(LOGIN_EXTENSION_SCRIPT.contains("button.disabled"));
         assert!(LOGIN_EXTENSION_SCRIPT.contains("stamp--normal"));
+    }
+
+    #[test]
+    fn test_mode_runs_every_minute() {
+        assert_eq!(LOGIN_EXTENSION_INTERVAL, Duration::from_secs(60));
     }
 
     #[test]
