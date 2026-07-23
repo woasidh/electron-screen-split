@@ -3,6 +3,7 @@ pub mod audio;
 pub mod commands;
 pub mod config_store;
 pub mod layout;
+pub mod login_extension;
 pub mod model;
 pub mod platform;
 pub mod wall;
