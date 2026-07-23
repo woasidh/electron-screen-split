@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 pub const LOGIN_EXTENSION_SCRIPT: &str = include_str!("../scripts/login-extension.js");
-pub const LOGIN_EXTENSION_INTERVAL: Duration = Duration::from_secs(60);
+pub const LOGIN_EXTENSION_INTERVAL: Duration = Duration::from_secs(60 * 60);
 const CANCEL_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 pub fn spawn(
@@ -55,8 +55,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mode_runs_every_minute() {
-        assert_eq!(LOGIN_EXTENSION_INTERVAL, Duration::from_secs(60));
+    fn production_mode_runs_hourly() {
+        assert_eq!(LOGIN_EXTENSION_INTERVAL, Duration::from_secs(60 * 60));
     }
 
     #[test]
