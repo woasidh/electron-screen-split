@@ -387,6 +387,21 @@ h2 {
   pointer-events: none;
 }
 
+.tile-meta {
+  position: absolute;
+  right: 8px;
+  bottom: 42px;
+  left: 8px;
+  z-index: 3;
+  overflow: hidden;
+  color: #d5d9e2;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+
 .preview-meta {
   margin-top: 10px;
   display: flex;
@@ -446,6 +461,25 @@ h2 {
 .switch-control input:focus-visible + .switch-track {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.option-row {
+  margin-top: 18px;
+  padding: 12px;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-soft);
+}
+
+.option-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.option-copy small {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .field-label {

@@ -6,6 +6,7 @@ const STATUS_LABELS = {
   error: "오류",
   disabled: "사용 안 함",
 };
+const DRAG_IMAGE_SELECTOR = "canvas[data-slot-drag-image]";
 
 const api = window.wallControl;
 
@@ -20,6 +21,7 @@ const elements = {
   runWall: document.querySelector("#run-wall"),
   shortcutHint: document.querySelector("#shortcut-hint"),
   slotEnabled: document.querySelector("#slot-enabled"),
+  slotLoginExtension: document.querySelector("#slot-login-extension"),
   slotName: document.querySelector("#slot-name"),
   slotStatus: document.querySelector("#slot-status"),
   slotStatusLabel: document.querySelector("#slot-status-label"),
@@ -38,7 +40,7 @@ let output = null;
 let previews = Array.from({ length: 4 }, () => null);
 let statuses = Array.from({ length: 4 }, () => ({ state: "idle", message: "" }));
 let selectedIndex = 0;
-let draggedIndex = null;
+let gridRenderPending = false;
 let saveTimer = null;
 let toastTimer = null;
 let mutationRevision = 0;
@@ -78,6 +80,63 @@ function getStatusClass(state) {
   if (state === "loading") return "is-loading";
   if (state === "error") return "is-error";
   return "";
+}
+
+function requestGridRender() {
+  if (elements.wallFrame.dataset.draggedIndex !== undefined) {
+    gridRenderPending = true;
+    return;
+  }
+  renderGrid();
+}
+
+function readDraggedIndex() {
+  const value = Number(elements.wallFrame.dataset.draggedIndex);
+  return Number.isInteger(value) ? value : null;
+}
+
+function finishDrag() {
+  delete elements.wallFrame.dataset.draggedIndex;
+  document.querySelector(DRAG_IMAGE_SELECTOR)?.remove();
+  document.querySelectorAll(".screen-tile").forEach((item) => {
+    item.classList.remove("is-dragging", "is-drop-target");
+  });
+  if (gridRenderPending) {
+    gridRenderPending = false;
+    renderGrid();
+  }
+}
+
+function installDragImage(dataTransfer, index, url) {
+  document.querySelector(DRAG_IMAGE_SELECTOR)?.remove();
+  const canvas = document.createElement("canvas");
+  canvas.width = 180;
+  canvas.height = 72;
+  canvas.dataset.slotDragImage = "";
+  Object.assign(canvas.style, {
+    position: "fixed",
+    left: "-9999px",
+    top: "-9999px",
+    width: "180px",
+    height: "72px",
+    pointerEvents: "none",
+  });
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = "#20242c";
+    context.fillRect(0, 0, 180, 72);
+    context.strokeStyle = "#6ea8fe";
+    context.lineWidth = 2;
+    context.strokeRect(1, 1, 178, 70);
+    context.fillStyle = "#f5f7fa";
+    context.font = "600 14px sans-serif";
+    context.fillText(`화면 ${index + 1} · ${POSITIONS[index]}`, 12, 27, 156);
+    context.fillStyle = "#9ba3af";
+    context.font = "12px sans-serif";
+    context.fillText(url || "URL 미설정", 12, 51, 156);
+  }
+  document.body.append(canvas);
+  dataTransfer.setDragImage(canvas, 90, 36);
 }
 
 function renderGrid() {
@@ -127,25 +186,36 @@ function renderGrid() {
     const url = document.createElement("span");
     url.className = "tile-url";
     url.textContent = slot.url || "URL 미설정";
-    tile.append(top, url);
+    const meta = document.createElement("span");
+    meta.className = "tile-meta";
+    meta.textContent = [
+      `${Math.round(slot.zoom * 100)}%`,
+      slot.enabled ? "사용" : "사용 안 함",
+      ...(slot.loginExtension ? ["로그인 연장"] : []),
+    ].join(" · ");
+    tile.append(top, url, meta);
 
     tile.addEventListener("click", () => {
       selectedIndex = index;
-      renderGrid();
+      requestGridRender();
       renderEditor();
     });
 
     tile.addEventListener("dragstart", (event) => {
-      draggedIndex = index;
+      elements.wallFrame.dataset.draggedIndex = String(index);
       tile.classList.add("is-dragging");
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", String(index));
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+        installDragImage(event.dataTransfer, index, slot.url);
+      }
     });
 
     tile.addEventListener("dragover", (event) => {
+      const draggedIndex = readDraggedIndex();
       if (draggedIndex === null || draggedIndex === index) return;
       event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
       tile.classList.add("is-drop-target");
     });
 
@@ -153,7 +223,12 @@ function renderGrid() {
 
     tile.addEventListener("drop", (event) => {
       event.preventDefault();
-      if (draggedIndex === null || draggedIndex === index) return;
+      const draggedIndex =
+        readDraggedIndex() ?? Number(event.dataTransfer?.getData("text/plain"));
+      if (!Number.isInteger(draggedIndex) || draggedIndex === index) {
+        finishDrag();
+        return;
+      }
       [config.slots[draggedIndex], config.slots[index]] = [
         config.slots[index],
         config.slots[draggedIndex],
@@ -166,18 +241,13 @@ function renderGrid() {
         ? { state: "loading", message: "" }
         : { state: "disabled", message: "" };
       selectedIndex = index;
-      draggedIndex = null;
+      finishDrag();
       renderAll();
       markChanged(0);
       showToast(`${POSITIONS[index]} 위치로 화면을 교환함`);
     });
 
-    tile.addEventListener("dragend", () => {
-      draggedIndex = null;
-      document.querySelectorAll(".screen-tile").forEach((item) => {
-        item.classList.remove("is-dragging", "is-drop-target");
-      });
-    });
+    tile.addEventListener("dragend", finishDrag);
 
     elements.wallFrame.append(tile);
   });
@@ -188,6 +258,7 @@ function renderEditor() {
   const status = getStatus(selectedIndex);
   elements.slotName.textContent = `화면 ${selectedIndex + 1} · ${POSITIONS[selectedIndex]}`;
   elements.slotEnabled.checked = slot.enabled;
+  elements.slotLoginExtension.checked = slot.loginExtension;
   elements.slotUrl.value = slot.url;
   elements.slotZoom.value = String(Math.round(slot.zoom * 100));
   elements.zoomValue.value = `${Math.round(slot.zoom * 100)}%`;
@@ -215,7 +286,7 @@ function renderSummary() {
 
 function renderAll() {
   renderOutput();
-  renderGrid();
+  requestGridRender();
   renderEditor();
   renderSummary();
 }
@@ -294,7 +365,7 @@ function confirmResolution() {
 elements.slotUrl.addEventListener("input", () => {
   config.slots[selectedIndex].url = elements.slotUrl.value.trim();
   validateSelectedUrl();
-  renderGrid();
+  requestGridRender();
   markChanged(700);
 });
 
@@ -309,6 +380,12 @@ elements.slotZoom.addEventListener("input", () => {
 elements.slotEnabled.addEventListener("change", () => {
   config.slots[selectedIndex].enabled = elements.slotEnabled.checked;
   statuses[selectedIndex] = { state: elements.slotEnabled.checked ? "loading" : "disabled", message: "" };
+  renderAll();
+  markChanged(0);
+});
+
+elements.slotLoginExtension.addEventListener("change", () => {
+  config.slots[selectedIndex].loginExtension = elements.slotLoginExtension.checked;
   renderAll();
   markChanged(0);
 });
@@ -338,7 +415,7 @@ elements.runWall.addEventListener("click", async () => {
 api.onStatusChanged((status) => {
   statuses[status.index] = status;
   if (config) {
-    renderGrid();
+    requestGridRender();
     renderEditor();
     renderSummary();
   }
@@ -348,7 +425,7 @@ api.onPreviewUpdated((preview) => {
   previews[preview.index] = preview;
   elements.previewState.textContent = "5초 자동 갱신";
   elements.previewUpdated.textContent = `${formatRefreshTime(preview.capturedAt)} 자동 갱신됨`;
-  if (config) renderGrid();
+  if (config) requestGridRender();
 });
 
 api.onOutputChanged((nextOutput) => {

@@ -72,7 +72,13 @@ app.whenReady().then(async () => {
       runBounds: document.querySelector('#run-wall')?.getBoundingClientRect().toJSON(),
       autoRefreshLabel: document.querySelector('#preview-state')?.textContent,
       hasManualRefreshButtons: document.body.innerText.includes('새로고침') || document.body.innerText.includes('미리보기 갱신'),
-      hasSavedMessage: document.body.innerText.includes('모든 변경사항 저장됨')
+      hasSavedMessage: document.body.innerText.includes('모든 변경사항 저장됨'),
+      hasLoginExtension: Boolean(document.querySelector('#slot-login-extension')),
+      zoomRange: {
+        min: document.querySelector('#slot-zoom')?.min,
+        max: document.querySelector('#slot-zoom')?.max,
+        step: document.querySelector('#slot-zoom')?.step
+      }
     })`);
 
     assert.equal(initial.tileCount, 4);
@@ -84,28 +90,68 @@ app.whenReady().then(async () => {
     assert.equal(initial.autoRefreshLabel, "5초 자동 갱신");
     assert.equal(initial.hasManualRefreshButtons, false);
     assert.equal(initial.hasSavedMessage, false);
+    assert.equal(initial.hasLoginExtension, true);
+    assert.deepEqual(initial.zoomRange, { min: "10", max: "200", step: "5" });
     assert.ok(initial.runBounds.right <= initial.viewport.width);
     assert.ok(initial.runBounds.bottom <= initial.viewport.height);
 
+    const dragImage = await window.webContents.executeJavaScript(`(() => {
+      const original = DataTransfer.prototype.setDragImage;
+      let observed = null;
+      DataTransfer.prototype.setDragImage = (element, x, y) => {
+        observed = { width: element.width, height: element.height, x, y };
+      };
+      const tile = document.querySelectorAll('.screen-tile')[0];
+      const transfer = new DataTransfer();
+      tile.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+      tile.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: transfer }));
+      DataTransfer.prototype.setDragImage = original;
+      return observed;
+    })()`);
+
+    assert.deepEqual(dragImage, { width: 180, height: 72, x: 90, y: 36 });
+
+    await window.webContents.executeJavaScript(`(() => {
+      document.querySelector('#slot-login-extension').click();
+      const tiles = document.querySelectorAll('.screen-tile');
+      const transfer = new DataTransfer();
+      tiles[0].dataset.dragIdentity = 'source-kept';
+      window.__testDragTransfer = transfer;
+      window.__sourceUrl = tiles[0].querySelector('.tile-url').textContent;
+      window.__targetUrl = tiles[3].querySelector('.tile-url').textContent;
+      tiles[0].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+    })()`);
+
+    window.webContents.send("preview:updated", {
+      index: 0,
+      dataUrl: null,
+      capturedAt: Date.now(),
+    });
+    await wait(50);
+
+    const sourceKept = await window.webContents.executeJavaScript(
+      `document.querySelectorAll('.screen-tile')[0]?.dataset.dragIdentity === 'source-kept'`,
+    );
+    assert.equal(sourceKept, true);
+
     const dragResult = await window.webContents.executeJavaScript(`(() => {
       const tiles = document.querySelectorAll('.screen-tile');
-      const sourceUrl = tiles[0].querySelector('.tile-url').textContent;
-      const targetUrl = tiles[3].querySelector('.tile-url').textContent;
-      const transfer = new DataTransfer();
-      tiles[0].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+      const transfer = window.__testDragTransfer;
       tiles[3].dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
       tiles[3].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
       const nextTiles = document.querySelectorAll('.screen-tile');
       return {
-        sourceUrl,
-        targetUrl,
+        sourceUrl: window.__sourceUrl,
+        targetUrl: window.__targetUrl,
         nextSourceUrl: nextTiles[0].querySelector('.tile-url').textContent,
-        nextTargetUrl: nextTiles[3].querySelector('.tile-url').textContent
+        nextTargetUrl: nextTiles[3].querySelector('.tile-url').textContent,
+        targetMeta: nextTiles[3].querySelector('.tile-meta').textContent
       };
     })()`);
 
     assert.equal(dragResult.nextSourceUrl, dragResult.targetUrl);
     assert.equal(dragResult.nextTargetUrl, dragResult.sourceUrl);
+    assert.match(dragResult.targetMeta, /로그인 연장/);
 
     await window.webContents.executeJavaScript("document.querySelector('#run-wall').click()");
     await wait(50);

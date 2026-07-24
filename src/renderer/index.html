@@ -59,7 +59,7 @@
 
           <div class="drag-guide" role="note">
             <span class="drag-icon" aria-hidden="true">↕</span>
-            <span><strong>위치 변경</strong> 화면을 원하는 칸으로 끌어 놓으면 URL·확대율·사용 상태가 함께 교환됨</span>
+            <span><strong>위치 변경</strong> 화면을 원하는 칸으로 끌어 놓으면 URL·확대율·사용 상태·로그인 연장이 함께 교환됨</span>
           </div>
 
           <div class="wall-frame" id="wall-frame" aria-label="2×2 화면 배치"></div>
@@ -94,6 +94,15 @@
             placeholder="https://example.com"
           >
           <p class="field-message" id="url-message">HTTP 또는 HTTPS 주소 입력</p>
+
+          <label class="option-row switch-control">
+            <span class="option-copy">
+              <strong>로그인 연장</strong>
+              <small>RUN 1시간 후부터 매시간 실행</small>
+            </span>
+            <input id="slot-login-extension" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
 
           <div class="zoom-heading">
             <label class="field-label" for="slot-zoom">확대율</label>
