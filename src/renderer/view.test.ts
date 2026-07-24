@@ -20,6 +20,19 @@ describe("manager view", () => {
     expect(document.querySelectorAll(".preview-image")).toHaveLength(0);
   });
 
+  test("offers zoom controls from 10 to 200 percent", () => {
+    const parsed = new DOMParser().parseFromString(managerMarkup, "text/html");
+    const input = parsed.querySelector<HTMLInputElement>("#slot-zoom");
+    const labels = Array.from(parsed.querySelectorAll(".range-labels span")).map(
+      (label) => label.textContent,
+    );
+
+    expect(input?.min).toBe("10");
+    expect(input?.max).toBe("200");
+    expect(input?.step).toBe("5");
+    expect(labels).toEqual(["10%", "200%"]);
+  });
+
   test("shows login extension control and enabled card metadata", () => {
     const parsed = new DOMParser().parseFromString(managerMarkup, "text/html");
     expect(parsed.querySelector("#slot-login-extension")).not.toBeNull();

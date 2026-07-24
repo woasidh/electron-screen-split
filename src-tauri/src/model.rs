@@ -86,7 +86,7 @@ fn normalize_zoom(zoom: f64) -> f64 {
         return 1.0;
     }
 
-    (zoom.clamp(0.5, 1.5) * 100.0).round() / 100.0
+    (zoom.clamp(0.1, 2.0) * 100.0).round() / 100.0
 }
 
 pub fn is_safe_remote_url(value: &str) -> bool {
@@ -110,8 +110,26 @@ mod tests {
 
         assert_eq!(config.slots.len(), 4);
         assert_eq!(config.slots[0].url, "https://example.com");
-        assert_eq!(config.slots[0].zoom, 1.5);
+        assert_eq!(config.slots[0].zoom, 2.0);
         assert!(config.slots[0].login_extension);
+    }
+
+    #[test]
+    fn normalize_clamps_zoom_to_supported_range() {
+        let slots = [9.0, -9.0]
+            .into_iter()
+            .map(|zoom| SlotConfig {
+                enabled: true,
+                url: "https://example.com".into(),
+                zoom,
+                login_extension: false,
+            })
+            .collect();
+
+        let config = AppConfig::normalize(slots);
+
+        assert_eq!(config.slots[0].zoom, 2.0);
+        assert_eq!(config.slots[1].zoom, 0.1);
     }
 
     #[test]
