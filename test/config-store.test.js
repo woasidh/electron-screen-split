@@ -12,16 +12,17 @@ const {
   normalizeConfig,
 } = require("../src/main/config-store");
 
-test("기본 설정은 네 개의 활성 슬롯을 제공한다", () => {
+test("기본 설정은 로그인 연장을 끈 네 개의 활성 슬롯을 제공한다", () => {
   const config = getDefaultConfig();
   assert.equal(config.slots.length, 4);
   assert.equal(config.slots.every((slot) => slot.enabled), true);
+  assert.equal(config.slots.every((slot) => slot.loginExtension === false), true);
 });
 
-test("설정의 슬롯 수와 확대율을 안전한 범위로 정규화한다", () => {
+test("설정의 슬롯 수와 확대율 및 로그인 연장을 정규화한다", () => {
   const config = normalizeConfig({
     slots: [
-      { enabled: true, url: " https://example.com ", zoom: 8 },
+      { enabled: true, url: " https://example.com ", zoom: 8, loginExtension: true },
       { enabled: false, url: "", zoom: 0.1 },
     ],
   });
@@ -30,10 +31,12 @@ test("설정의 슬롯 수와 확대율을 안전한 범위로 정규화한다",
   assert.deepEqual(config.slots[0], {
     enabled: true,
     url: "https://example.com",
-    zoom: 1.5,
+    zoom: 2,
+    loginExtension: true,
   });
-  assert.equal(config.slots[1].zoom, 0.5);
+  assert.equal(config.slots[1].zoom, 0.1);
   assert.equal(config.slots[1].enabled, false);
+  assert.equal(config.slots[1].loginExtension, false);
 });
 
 test("HTTP와 HTTPS 주소만 원격 화면 URL로 허용한다", () => {

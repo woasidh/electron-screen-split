@@ -17,6 +17,7 @@ function getDefaultConfig() {
       enabled: true,
       url,
       zoom: 1,
+      loginExtension: false,
     })),
   };
 }
@@ -24,7 +25,7 @@ function getDefaultConfig() {
 function clampZoom(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return 1;
-  return Math.round(Math.min(1.5, Math.max(0.5, numericValue)) * 100) / 100;
+  return Math.round(Math.min(2, Math.max(0.1, numericValue)) * 100) / 100;
 }
 
 function normalizeSlot(input, fallback) {
@@ -33,6 +34,7 @@ function normalizeSlot(input, fallback) {
     enabled: source.enabled !== false,
     url: typeof source.url === "string" ? source.url.trim().slice(0, 2048) : fallback.url,
     zoom: clampZoom(source.zoom),
+    loginExtension: source.loginExtension === true,
   };
 }
 
