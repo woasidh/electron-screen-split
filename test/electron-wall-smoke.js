@@ -64,7 +64,6 @@ app.whenReady().then(async () => {
     };
 
     await controller.applyConfig(config, { forceReload: true });
-    await controller.overlayReady;
     const previews = await controller.captureAll();
     let automaticRefreshes = 0;
     const captureAll = controller.captureAll.bind(controller);
@@ -79,7 +78,8 @@ app.whenReady().then(async () => {
     assert.equal(controller.views.length, 4);
     assert.equal(PREVIEW_REFRESH_INTERVAL, 5000);
     assert.notEqual(controller.previewRefreshTimer, null);
-    assert.equal(controller.overlayViews.size, 1);
+    assert.equal(controller.overlayViews, undefined);
+    assert.equal(controller.window.contentView.children.length, 4);
     assert.equal(statuses.filter((status) => status.state === "ready").length >= 4, true);
     assert.equal(
       previews.every((preview) => preview?.dataUrl?.startsWith("data:image/png")),
@@ -112,8 +112,8 @@ app.whenReady().then(async () => {
     assert.equal(bounds[0].width + bounds[1].width, controller.window.getContentSize()[0]);
     assert.equal(bounds[0].height + bounds[2].height, controller.window.getContentSize()[1]);
 
-    controller.running = true;
-    controller.startLoginExtension();
+    controller.run();
+    assert.equal(controller.running, true);
     const loginExtensionTimer = controller.loginExtensionTimer;
     assert.notEqual(loginExtensionTimer, null);
     controller.startLoginExtension();
@@ -142,50 +142,18 @@ app.whenReady().then(async () => {
       "window.loginClicks",
     );
     assert.equal(clicksBeforeStop >= 1, true);
-    controller.stopLoginExtension();
+    controller.stop();
+    assert.equal(controller.running, false);
     assert.equal(controller.loginExtensionTimer, null);
     await wait(80);
     assert.equal(
       await controller.views[0].webContents.executeJavaScript("window.loginClicks"),
       clicksBeforeStop,
     );
-    controller.running = false;
-
-    const loadedPanels = await Promise.all(
-      [...controller.overlayViews.values()].map((view) =>
-        view.webContents.executeJavaScript("location.hash.slice(1)"),
-      ),
-    );
-    assert.deepEqual(loadedPanels, ["hint"]);
-
-    const hintUi = await controller.overlayViews.get("hint").webContents.executeJavaScript(`({
-      text: document.body.textContent.replace(/\\s+/g, " ").trim(),
-      buttonCount: document.querySelectorAll("button").length,
-      backdropFilter: getComputedStyle(document.querySelector(".hint-panel")).backdropFilter,
-      keycapBackground: getComputedStyle(document.querySelector(".keycap")).backgroundColor
-    })`);
-    assert.equal(hintUi.text, "ESC 관리 화면");
-    assert.equal(hintUi.buttonCount, 0);
-    assert.notEqual(hintUi.backdropFilter, "none");
-    assert.equal(hintUi.keycapBackground, "rgb(230, 33, 23)");
+    managerRequests = 0;
 
     controller.running = true;
-    controller.showOverlay();
-    assert.equal(controller.overlayControlsVisible, true);
-    assert.deepEqual(controller.overlayPanelVisibility, { hint: true });
-
-    controller.handleOverlayHover("hint", true);
-    controller.hideOverlay();
-    assert.equal(controller.overlayControlsVisible, true);
-    controller.handleOverlayHover("hint", false);
-    clearTimeout(controller.overlayHideTimer);
-    controller.overlayHideTimer = null;
-    controller.hideOverlay();
-    assert.equal(controller.overlayControlsVisible, false);
-    assert.deepEqual(controller.overlayPanelVisibility, { hint: false });
-
     controller.setStatus(0, "error", "smoke error");
-    assert.deepEqual(controller.overlayPanelVisibility, { hint: false });
 
     let prevented = false;
     controller.handleShortcutInput(
@@ -234,7 +202,6 @@ app.whenReady().then(async () => {
       JSON.stringify({
         status: "ok",
         webContentsViews: controller.views.length,
-        overlayViews: controller.overlayViews.size,
         previewCaptures: previews.length,
         layoutCoversWindow: true,
         escapeReturnsToManager: true,

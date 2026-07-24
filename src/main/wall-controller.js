@@ -10,8 +10,6 @@ const {
   shouldExtendLogin,
 } = require("./login-extension");
 
-const OVERLAY_HIDE_DELAY = 3000;
-const OVERLAY_PANELS = ["hint"];
 const PREVIEW_REFRESH_INTERVAL = 5000;
 
 function wait(milliseconds) {
@@ -30,8 +28,6 @@ class WallController {
     this.onStatus = onStatus;
     this.window = null;
     this.views = [];
-    this.overlayViews = new Map();
-    this.overlayReady = Promise.resolve();
     this.previewWindows = [];
     this.configuredSessions = new WeakSet();
     this.config = null;
@@ -42,16 +38,6 @@ class WallController {
     this.previewRefreshInFlight = false;
     this.loginExtensionInterval = loginExtensionInterval;
     this.loginExtensionTimer = null;
-    this.overlayHideTimer = null;
-    this.overlayHoverPanels = new Set();
-    this.overlayControlsVisible = false;
-    this.lastPointerActivityAt = 0;
-    this.overlayPanelVisibility = Object.fromEntries(
-      OVERLAY_PANELS.map((panel) => [panel, false]),
-    );
-    this.cursorShouldBeHidden = false;
-    this.cursorStyleGeneration = 0;
-    this.cursorCssKeys = Array.from({ length: 4 }, () => null);
     this.wallModeGuardTimer = null;
     this.running = false;
     this.destroying = false;
@@ -149,7 +135,6 @@ class WallController {
     });
 
     this.createViews();
-    this.createOverlayViews();
     this.layoutViews();
   }
 
@@ -171,11 +156,6 @@ class WallController {
       view.webContents.on("before-input-event", (event, input) => {
         this.handleShortcutInput(event, input);
       });
-      view.webContents.on("before-mouse-event", (_event, mouse) => {
-        if (mouse.type === "mouseMove" || mouse.type === "mouseEnter") {
-          this.handlePointerActivity();
-        }
-      });
       view.webContents.on("did-start-loading", () => {
         if (this.config?.slots[index]?.enabled) this.setStatus(index, "loading");
       });
@@ -183,9 +163,6 @@ class WallController {
         if (!this.config?.slots[index]?.enabled) return;
         this.applyOutputZoom(index);
         this.setStatus(index, "ready");
-        if (this.running && this.cursorShouldBeHidden) {
-          this.reapplyCursorStyle(index);
-        }
       });
       view.webContents.on(
         "did-fail-load",
@@ -203,45 +180,6 @@ class WallController {
 
       this.window.contentView.addChildView(view);
       return view;
-    });
-  }
-
-  createOverlayViews() {
-    const overlayPath = path.join(__dirname, "../renderer/overlay.html");
-    const preloadPath = path.join(__dirname, "../overlay-preload.js");
-    const loads = OVERLAY_PANELS.map((panel) => {
-      const view = new WebContentsView({
-        webPreferences: {
-          backgroundThrottling: false,
-          contextIsolation: true,
-          nodeIntegration: false,
-          preload: preloadPath,
-          sandbox: true,
-          spellcheck: false,
-        },
-      });
-
-      view.setBackgroundColor("#00000000");
-      view.setVisible(false);
-      view.webContents.on("before-input-event", (event, input) => {
-        this.handleShortcutInput(event, input);
-      });
-      view.webContents.on("ipc-message", (_event, channel, payload) => {
-        if (channel === "wall-overlay:action") {
-          this.handleOverlayAction(payload);
-        } else if (channel === "wall-overlay:activity") {
-          this.handlePointerActivity();
-        } else if (channel === "wall-overlay:hover") {
-          this.handleOverlayHover(payload?.panel || panel, Boolean(payload?.hovering));
-        }
-      });
-      this.window.contentView.addChildView(view);
-      this.overlayViews.set(panel, view);
-      return view.webContents.loadFile(overlayPath, { hash: panel });
-    });
-
-    this.overlayReady = Promise.all(loads).catch((error) => {
-      console.error("오버레이 로딩 실패", error);
     });
   }
 
@@ -356,20 +294,6 @@ class WallController {
         previewWindow.setContentSize(bounds[index].width, bounds[index].height);
         this.applyPreviewZoom(index);
       }
-    });
-    this.layoutOverlayViews(width, height);
-  }
-
-  layoutOverlayViews(width, height) {
-    if (this.overlayViews.size !== OVERLAY_PANELS.length) return;
-
-    const margin = 24;
-    const hintWidth = Math.min(252, Math.max(190, width - margin * 2));
-    this.overlayViews.get("hint").setBounds({
-      x: Math.max(margin, width - margin - hintWidth),
-      y: Math.max(margin, height - margin - 58),
-      width: hintWidth,
-      height: 58,
     });
   }
 
@@ -569,7 +493,6 @@ class WallController {
     this.window.focus();
     this.startWallModeGuard();
     this.startLoginExtension();
-    this.showOverlay();
   }
 
   stop() {
@@ -578,12 +501,6 @@ class WallController {
     this.stopLoginExtension();
     clearInterval(this.wallModeGuardTimer);
     this.wallModeGuardTimer = null;
-    clearTimeout(this.overlayHideTimer);
-    this.overlayHideTimer = null;
-    this.overlayHoverPanels.clear();
-    this.overlayControlsVisible = false;
-    OVERLAY_PANELS.forEach((panel) => this.setOverlayPanelVisible(panel, false));
-    this.setCursorHidden(false);
     this.leaveWallMode();
     this.window.hide();
     this.previewWindows.forEach((window, index) => {
@@ -600,9 +517,6 @@ class WallController {
     clearInterval(this.wallModeGuardTimer);
     this.wallModeGuardTimer = null;
     this.stopPreviewAutoRefresh();
-    clearTimeout(this.overlayHideTimer);
-    this.overlayHideTimer = null;
-    this.cursorStyleGeneration += 1;
     this.captureTimers.forEach((timer) => clearTimeout(timer));
     this.captureTimers.clear();
     this.previewWindows.forEach((window) => {
@@ -613,10 +527,6 @@ class WallController {
       if (!view.webContents.isDestroyed()) view.webContents.close();
     });
     this.views = [];
-    this.overlayViews.forEach((view) => {
-      if (!view.webContents.isDestroyed()) view.webContents.close();
-    });
-    this.overlayViews.clear();
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
   }
@@ -625,116 +535,6 @@ class WallController {
     const status = { index, state, message, updatedAt: Date.now() };
     this.statuses[index] = status;
     this.onStatus(status);
-  }
-
-  setOverlayPanelVisible(panel, visible) {
-    const view = this.overlayViews.get(panel);
-    const nextVisible = Boolean(visible && this.running);
-    this.overlayPanelVisibility[panel] = nextVisible;
-    if (view && !view.webContents.isDestroyed()) view.setVisible(nextVisible);
-  }
-
-  showOverlay() {
-    if (!this.running) return;
-    if (!this.overlayControlsVisible) {
-      this.overlayControlsVisible = true;
-      OVERLAY_PANELS.forEach((panel) => this.setOverlayPanelVisible(panel, true));
-      this.setCursorHidden(false);
-    }
-    this.scheduleOverlayHide();
-  }
-
-  scheduleOverlayHide() {
-    clearTimeout(this.overlayHideTimer);
-    this.overlayHideTimer = null;
-    if (!this.running || this.overlayHoverPanels.size > 0) return;
-
-    this.overlayHideTimer = setTimeout(() => {
-      this.overlayHideTimer = null;
-      this.hideOverlay();
-    }, OVERLAY_HIDE_DELAY);
-  }
-
-  hideOverlay() {
-    if (!this.running || this.overlayHoverPanels.size > 0) return;
-    this.overlayControlsVisible = false;
-    this.setOverlayPanelVisible("hint", false);
-    this.setCursorHidden(true);
-  }
-
-  handlePointerActivity() {
-    if (!this.running) return;
-    const now = Date.now();
-    if (now - this.lastPointerActivityAt < 80) return;
-    this.lastPointerActivityAt = now;
-    this.showOverlay();
-  }
-
-  handleOverlayHover(panel, hovering) {
-    if (!this.running || !OVERLAY_PANELS.includes(panel)) return;
-    if (hovering) {
-      this.overlayHoverPanels.add(panel);
-      clearTimeout(this.overlayHideTimer);
-      this.overlayHideTimer = null;
-      this.showOverlay();
-      return;
-    }
-
-    this.overlayHoverPanels.delete(panel);
-    this.scheduleOverlayHide();
-  }
-
-  handleOverlayAction(action) {
-    if (action === "manager") {
-      this.onManagerShortcut();
-    }
-  }
-
-  setCursorHidden(hidden) {
-    this.cursorShouldBeHidden = Boolean(hidden && this.running);
-    this.cursorStyleGeneration += 1;
-    const generation = this.cursorStyleGeneration;
-
-    if (!this.cursorShouldBeHidden) {
-      this.views.forEach((view, index) => {
-        const key = this.cursorCssKeys[index];
-        this.cursorCssKeys[index] = null;
-        if (key && !view.webContents.isDestroyed()) {
-          view.webContents.removeInsertedCSS(key).catch(() => {});
-        }
-      });
-      return;
-    }
-
-    this.views.forEach((_view, index) => this.insertCursorStyle(index, generation));
-  }
-
-  reapplyCursorStyle(index) {
-    this.cursorCssKeys[index] = null;
-    this.insertCursorStyle(index, this.cursorStyleGeneration);
-  }
-
-  insertCursorStyle(index, generation) {
-    const view = this.views[index];
-    if (!view || view.webContents.isDestroyed() || this.cursorCssKeys[index]) return;
-
-    view.webContents
-      .insertCSS("html, body, body * { cursor: none !important; }")
-      .then((key) => {
-        if (
-          generation !== this.cursorStyleGeneration ||
-          !this.cursorShouldBeHidden ||
-          !this.running ||
-          view.webContents.isDestroyed()
-        ) {
-          if (!view.webContents.isDestroyed()) {
-            view.webContents.removeInsertedCSS(key).catch(() => {});
-          }
-          return;
-        }
-        this.cursorCssKeys[index] = key;
-      })
-      .catch(() => {});
   }
 }
 
