@@ -12,10 +12,24 @@ function wait(milliseconds) {
 function createServer() {
   const server = http.createServer((request, response) => {
     const index = new URL(request.url, "http://127.0.0.1").searchParams.get("screen") || "1";
+    const testCases = {
+      1: `<button class="stamp stamp--normal" onclick="window.loginClicks += 1">23:35:32</button>`,
+      2: "<p>NO LOGIN BUTTON</p>",
+      3: `<div>
+        <button class="stamp stamp--normal">23:35:32</button>
+        <button class="stamp stamp—normal">23:35:33</button>
+      </div>`,
+      4: `<button id="throwing-login-button" class="stamp stamp--normal">23:35:32</button>
+        <script>
+          document.getElementById("throwing-login-button").click = () => {
+            throw new Error("smoke click failure");
+          };
+        </script>`,
+    };
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    response.end(`<!doctype html>
-      <html><body style="margin:0;display:grid;place-items:center;width:100vw;height:100vh;background:#1f2937;color:white;font:64px sans-serif">
-        SCREEN ${index}
+    response.end(`<!doctype html><html><body style="margin:0;display:grid;place-items:center;width:100vw;height:100vh;background:#1f2937;color:white;font:32px sans-serif">
+        <script>window.loginClicks = 0;</script>
+        <main>SCREEN ${index}${testCases[index]}</main>
       </body></html>`);
   });
 
@@ -35,6 +49,7 @@ app.whenReady().then(async () => {
     },
     onPreview: () => {},
     onStatus: (status) => statuses.push(status),
+    loginExtensionInterval: 50,
   });
 
   try {
@@ -42,6 +57,7 @@ app.whenReady().then(async () => {
       version: 1,
       slots: Array.from({ length: 4 }, (_, index) => ({
         enabled: true,
+        loginExtension: true,
         url: `http://127.0.0.1:${port}/?screen=${index + 1}`,
         zoom: 1 + index * 0.1,
       })),
@@ -95,6 +111,45 @@ app.whenReady().then(async () => {
     const bounds = controller.views.map((view) => view.getBounds());
     assert.equal(bounds[0].width + bounds[1].width, controller.window.getContentSize()[0]);
     assert.equal(bounds[0].height + bounds[2].height, controller.window.getContentSize()[1]);
+
+    controller.running = true;
+    controller.startLoginExtension();
+    const loginExtensionTimer = controller.loginExtensionTimer;
+    assert.notEqual(loginExtensionTimer, null);
+    controller.startLoginExtension();
+    assert.equal(controller.loginExtensionTimer, loginExtensionTimer);
+    await wait(140);
+
+    const loginExtensionResults = await Promise.all(
+      controller.views.map((view) =>
+        view.webContents.executeJavaScript(`({
+          text: document.getElementById("screen-wall-login-extension-result")?.textContent || "",
+          background: document.getElementById("screen-wall-login-extension-result")
+            ? getComputedStyle(document.getElementById("screen-wall-login-extension-result")).backgroundColor
+            : ""
+        })`),
+      ),
+    );
+    assert.match(loginExtensionResults[0].text, /로그인 연장 버튼 클릭 완료/);
+    assert.equal(loginExtensionResults[0].background, "rgba(21, 128, 61, 0.96)");
+    assert.match(loginExtensionResults[1].text, /로그인 연장 대상 버튼 없음/);
+    assert.match(loginExtensionResults[2].text, /로그인 연장 대상 버튼 여러 개/);
+    assert.match(loginExtensionResults[3].text, /로그인 연장 버튼 클릭 실패/);
+    loginExtensionResults.slice(1).forEach((result) => {
+      assert.equal(result.background, "rgba(185, 28, 28, 0.96)");
+    });
+    const clicksBeforeStop = await controller.views[0].webContents.executeJavaScript(
+      "window.loginClicks",
+    );
+    assert.equal(clicksBeforeStop >= 1, true);
+    controller.stopLoginExtension();
+    assert.equal(controller.loginExtensionTimer, null);
+    await wait(80);
+    assert.equal(
+      await controller.views[0].webContents.executeJavaScript("window.loginClicks"),
+      clicksBeforeStop,
+    );
+    controller.running = false;
 
     const loadedPanels = await Promise.all(
       [...controller.overlayViews.values()].map((view) =>

@@ -4,6 +4,11 @@ const { BrowserWindow, WebContentsView, screen } = require("electron");
 
 const { isSafeRemoteUrl, normalizeConfig } = require("./config-store");
 const { calculateOutputZoom, calculateQuadrants, getOutputInfo } = require("./layout");
+const {
+  LOGIN_EXTENSION_INTERVAL,
+  LOGIN_EXTENSION_SCRIPT,
+  shouldExtendLogin,
+} = require("./login-extension");
 
 const OVERLAY_HIDE_DELAY = 3000;
 const OVERLAY_PANELS = ["hint"];
@@ -14,7 +19,12 @@ function wait(milliseconds) {
 }
 
 class WallController {
-  constructor({ onManagerShortcut, onPreview, onStatus }) {
+  constructor({
+    onManagerShortcut,
+    onPreview,
+    onStatus,
+    loginExtensionInterval = LOGIN_EXTENSION_INTERVAL,
+  }) {
     this.onManagerShortcut = onManagerShortcut;
     this.onPreview = onPreview;
     this.onStatus = onStatus;
@@ -30,6 +40,8 @@ class WallController {
     this.captureTimers = new Map();
     this.previewRefreshTimer = null;
     this.previewRefreshInFlight = false;
+    this.loginExtensionInterval = loginExtensionInterval;
+    this.loginExtensionTimer = null;
     this.overlayHideTimer = null;
     this.overlayHoverPanels = new Set();
     this.overlayControlsVisible = false;
@@ -508,6 +520,36 @@ class WallController {
     }
   }
 
+  startLoginExtension() {
+    if (
+      !this.running
+      || this.destroying
+      || this.loginExtensionTimer !== null
+      || !this.config?.slots.some(shouldExtendLogin)
+    ) {
+      return;
+    }
+
+    this.loginExtensionTimer = setInterval(() => {
+      this.executeLoginExtension();
+    }, this.loginExtensionInterval);
+  }
+
+  stopLoginExtension() {
+    clearInterval(this.loginExtensionTimer);
+    this.loginExtensionTimer = null;
+  }
+
+  executeLoginExtension() {
+    this.config?.slots.forEach((slot, index) => {
+      const view = this.views[index];
+      if (!shouldExtendLogin(slot) || !view || view.webContents.isDestroyed()) return;
+      view.webContents.executeJavaScript(LOGIN_EXTENSION_SCRIPT, true).catch((error) => {
+        console.error(`[Screen Wall] ${index + 1}번 화면 로그인 연장 실행 실패`, error);
+      });
+    });
+  }
+
   run() {
     this.ensureWindow();
     this.running = true;
@@ -526,12 +568,14 @@ class WallController {
     this.enterWallMode();
     this.window.focus();
     this.startWallModeGuard();
+    this.startLoginExtension();
     this.showOverlay();
   }
 
   stop() {
     if (!this.window || this.window.isDestroyed()) return;
     this.running = false;
+    this.stopLoginExtension();
     clearInterval(this.wallModeGuardTimer);
     this.wallModeGuardTimer = null;
     clearTimeout(this.overlayHideTimer);
@@ -552,6 +596,7 @@ class WallController {
 
   destroy() {
     this.destroying = true;
+    this.stopLoginExtension();
     clearInterval(this.wallModeGuardTimer);
     this.wallModeGuardTimer = null;
     this.stopPreviewAutoRefresh();
